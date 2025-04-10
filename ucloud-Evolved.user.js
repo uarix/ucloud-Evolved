@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         云邮教学空间助手
 // @namespace    http://tampermonkey.net/
-// @version      0.22
+// @version      0.23
 // @description  主页作业显示所属课程，使用Office 365预览课件，课件自动下载，批量下载，展示全部下载按钮
 // @author       Quarix, Youxam
 // @updateURL    https://github.com/uarix/ucloud-Evolved/raw/refs/heads/main/ucloud-Evolved.user.js
@@ -18,10 +18,58 @@
 // @grant        GM_setValue
 // @grant        GM_getValue
 // @grant        GM_registerMenuCommand
+// @grant        GM_openInTab
 // @run-at       document-start
 // @license      MIT
 // ==/UserScript==
 
+(function () {
+  // 拦截 Office 预览页面
+  if (
+    location.href.startsWith("https://ucloud.bupt.edu.cn/office/") &&
+    GM_getValue("autoSwitchOffice", false)
+  ) {
+    const url = new URLSearchParams(location.search).get("furl");
+    const filename =
+      new URLSearchParams(location.search).get("fullfilename") || url;
+    const viewURL = new URL(url);
+    if (new URLSearchParams(location.search).get("oauthKey")) {
+      const viewURLsearch = new URLSearchParams(viewURL.search);
+      viewURLsearch.set(
+        "oauthKey",
+        new URLSearchParams(location.search).get("oauthKey")
+      );
+      viewURL.search = viewURLsearch.toString();
+    }
+
+    if (
+      filename.endsWith(".xls") ||
+      filename.endsWith(".xlsx") ||
+      filename.endsWith(".doc") ||
+      filename.endsWith(".docx") ||
+      filename.endsWith(".ppt") ||
+      filename.endsWith(".pptx")
+    ) {
+      if (window.stop) window.stop();
+      location.href =
+        "https://view.officeapps.live.com/op/view.aspx?src=" +
+        encodeURIComponent(viewURL.toString());
+      return;
+    } else if (filename.endsWith(".pdf")) {
+      if (window.stop) window.stop();
+      // 使用浏览器内置预览器，转blob避免出现下载动作
+      fetch(viewURL.toString())
+        .then((response) => response.blob())
+        .then((blob) => {
+          const blobUrl = URL.createObjectURL(blob);
+          location.href = blobUrl;
+        })
+        .catch((err) => console.error("PDF加载失败:", err));
+      return;
+    }
+    return;
+  }
+})();
 (function interceptXHR() {
   const originalOpen = XMLHttpRequest.prototype.open;
 
@@ -50,7 +98,6 @@
     return originalOpen.call(this, method, url, async, user, password);
   };
 })();
-
 (function () {
   // 等待页面DOM加载完成
   document.addEventListener("DOMContentLoaded", initializeExtension);
@@ -58,13 +105,14 @@
   // 用户设置
   const settings = {
     autoDownload: GM_getValue("autoDownload", false),
-    autoSwitchOffice: GM_getValue("autoSwitchOffice", true),
+    autoSwitchOffice: GM_getValue("autoSwitchOffice", false),
     autoClosePopup: GM_getValue("autoClosePopup", true),
     hideTimer: GM_getValue("hideTimer", true),
     unlockCopy: GM_getValue("unlockCopy", true),
     showMoreNotification: GM_getValue("showMoreNotification", true),
     useBiggerButton: GM_getValue("useBiggerButton", true),
     autoUpdate: GM_getValue("autoUpdate", true),
+    showConfigButton: GM_getValue("showConfigButton", true),
   };
 
   // 辅助变量
@@ -82,14 +130,13 @@
     // 注册菜单命令
     registerMenuCommands();
 
-    // 处理Office预览页面（需要尽早处理）
-    if (location.href.startsWith("https://ucloud.bupt.edu.cn/office/")) {
-      main();
-      return;
+    const nprogressCSS = GM_getResourceText("NPROGRESS_CSS");
+    GM_addStyle(nprogressCSS);
+
+    if (settings.showConfigButton) {
+      loadui();
     }
-
-    loadui();
-
+    addFunctionalCSS();
     main();
 
     if (settings.autoUpdate) {
@@ -108,6 +155,16 @@
 
   // 注册菜单命令
   function registerMenuCommands() {
+    GM_registerMenuCommand(
+      (settings.showConfigButton ? "✅" : "❌") +
+        "显示配置按钮：" +
+        (settings.showConfigButton ? "已启用" : "已禁用"),
+      () => {
+        settings.showConfigButton = !settings.showConfigButton;
+        GM_setValue("showConfigButton", settings.showConfigButton);
+        location.reload();
+      }
+    );
     GM_registerMenuCommand(
       (settings.autoDownload ? "✅" : "❌") +
         "预览课件时自动下载：" +
@@ -130,7 +187,42 @@
       }
     );
   }
-
+  /**
+   * 通用标签页打开函数
+   * @param {string} url - 要打开的URL
+   * @param {Object} options - 选项参数
+   * @param {boolean} [options.active=true] - 新标签页是否获得焦点
+   * @param {boolean} [options.insert=true] - 是否在当前标签页旁边插入新标签页
+   * @param {boolean} [options.setParent=true] - 新标签页是否将当前标签页设为父页面
+   * @param {string} [options.windowName="_blank"] - window.open的窗口名称
+   * @param {string} [options.windowFeatures=""] - window.open的窗口特性
+   * @returns {Object|Window|null} 打开的标签页对象
+   */
+  function openTab(url, options = {}) {
+    const defaultOptions = {
+      active: true,
+      insert: true,
+      setParent: true,
+      windowName: "_blank",
+      windowFeatures: "",
+    };
+    const finalOptions = { ...defaultOptions, ...options };
+    if (typeof GM_openInTab === "function") {
+      try {
+        return GM_openInTab(url, {
+          active: finalOptions.active,
+          insert: finalOptions.insert,
+          setParent: finalOptions.setParent,
+        });
+      } catch (error) {
+        return window.open(
+          url,
+          finalOptions.windowName,
+          finalOptions.windowFeatures
+        );
+      }
+    }
+  }
   function showUpdateNotification(newVersion) {
     const notification = document.createElement("div");
     notification.style.cssText = `  
@@ -157,11 +249,7 @@
     document.body.appendChild(notification);
 
     document.getElementById("updateNow").addEventListener("click", function () {
-      if (typeof GM_openInTab === "function") {
-        GM_openInTab(GM_info.script.downloadURL, { active: true });
-      } else {
-        window.open(GM_info.script.downloadURL, "_blank");
-      }
+      openTab(GM_info.script.downloadURL, { active: true });
       document.body.removeChild(notification);
     });
 
@@ -199,8 +287,6 @@
   }
 
   function loadui() {
-    const nprogressCSS = GM_getResourceText("NPROGRESS_CSS");
-    GM_addStyle(nprogressCSS);
     GM_addStyle(`  
         #yzHelper-settings {  
             position: fixed;  
@@ -491,7 +577,7 @@
       const notification = document.createElement("div");
       notification.style.cssText = `  
             position: fixed;  
-            top: 20px;  
+            bottom: 80px;    
             right: 20px;  
             background: #4CAF50;  
             color: white;  
@@ -526,8 +612,6 @@
         }, 300);
       }, 3000);
     }
-
-    addFunctionalCSS();
   }
   // 获取Token
   function getToken() {
@@ -960,6 +1044,11 @@
 
   // 启用文本选择 修改按钮尺寸
   function addFunctionalCSS() {
+    GM_addStyle(`
+    .teacher-home-page .home-left-container .in-progress-section .in-progress-body .in-progress-item .activity-box .activity-title {  
+      height: auto !important;
+    }  
+    `);
     if (settings.enableTextSelection) {
       GM_addStyle(`  
         .el-checkbox, .el-checkbox-button__inner, .el-empty__image img, .el-radio,  
@@ -988,9 +1077,6 @@
     }
     if (settings.useBiggerButton) {
       GM_addStyle(`
-      .teacher-home-page .home-left-container .in-progress-section .in-progress-body .in-progress-item .activity-box .activity-title {  
-        height: auto !important;
-      }  
       .teacher-home-page .home-left-container .my-lesson-section .my-lesson-header .header-control .banner-control-btn, .teacher-home-page .home-left-container .in-progress-section .in-progress-header .header-control .banner-control-btn {
         width: 60px !important;
         height: 30px !important;
@@ -1054,38 +1140,6 @@
         }  
       `);
       }
-    }
-    // Office 预览页面
-    if (location.href.startsWith("https://ucloud.bupt.edu.cn/office/")) {
-      const url = new URLSearchParams(location.search).get("furl");
-      const filename =
-        new URLSearchParams(location.search).get("fullfilename") || url;
-      const viewURL = new URL(url);
-      if (!settings.autoSwitchOffice) return;
-
-      if (new URLSearchParams(location.search).get("oauthKey")) {
-        const viewURLsearch = new URLSearchParams(viewURL.search);
-        viewURLsearch.set(
-          "oauthKey",
-          new URLSearchParams(location.search).get("oauthKey")
-        );
-        viewURL.search = viewURLsearch.toString();
-      }
-
-      if (
-        filename.endsWith(".xls") ||
-        filename.endsWith(".xlsx") ||
-        filename.endsWith(".doc") ||
-        filename.endsWith(".docx") ||
-        filename.endsWith(".ppt") ||
-        filename.endsWith(".pptx")
-      ) {
-        location.href =
-          "https://view.officeapps.live.com/op/view.aspx?src=" +
-          encodeURIComponent(viewURL.toString());
-      }
-
-      return;
     }
 
     // 作业详情页面
@@ -1162,12 +1216,16 @@
                 url.endsWith(".ppt") ||
                 url.endsWith(".pptx")
               )
-                window.open(
+                openTab(
                   "https://view.officeapps.live.com/op/view.aspx?src=" +
-                    encodeURIComponent(url)
+                    encodeURIComponent(url),
+                  { active: true, insert: true }
                 );
               else if (onlinePreview !== null)
-                window.open(onlinePreview + encodeURIComponent(url));
+                openTab(onlinePreview + encodeURIComponent(url), {
+                  active: true,
+                  insert: true,
+                });
             });
 
             // 添加下载按钮
