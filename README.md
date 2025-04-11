@@ -67,6 +67,7 @@
 1. 安装浏览器扩展：[Tampermonkey](https://www.tampermonkey.net/)（或其他用户脚本管理器）
 2. 安装本脚本（以下任选一种方式）：
    - [通过 Github 安装 ](https://github.com/uarix/ucloud-Evolved/raw/refs/heads/main/ucloud-Evolved.user.js)
+   - [通过GreasyFork安装](https://greasyfork.org/zh-CN/scripts/532489-ucloud-evolved)
    - 复制源代码到脚本管理器中创建新脚本
 3. 访问云邮教学空间，自动启用增强功能
 

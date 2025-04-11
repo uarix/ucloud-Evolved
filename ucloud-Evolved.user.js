@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         云邮教学空间助手
+// @name         ucloud-Evolved
 // @namespace    http://tampermonkey.net/
 // @version      0.23
 // @description  主页作业显示所属课程，使用Office 365预览课件，课件自动下载，批量下载，展示全部下载按钮
-// @author       Quarix, Youxam
+// @author       Quarix
 // @updateURL    https://github.com/uarix/ucloud-Evolved/raw/refs/heads/main/ucloud-Evolved.user.js
 // @downloadURL  https://github.com/uarix/ucloud-Evolved/raw/refs/heads/main/ucloud-Evolved.user.js
 // @match        https://ucloud.bupt.edu.cn/*
@@ -11,8 +11,9 @@
 // @match        https://ucloud.bupt.edu.cn/uclass/*
 // @match        https://ucloud.bupt.edu.cn/office/*
 // @icon         https://ucloud.bupt.edu.cn/favicon.ico
-// @require      https://lf9-cdn-tos.bytecdntp.com/cdn/expire-1-M/nprogress/0.2.0/nprogress.min.js
-// @resource     NPROGRESS_CSS https://lf3-cdn-tos.bytecdntp.com/cdn/expire-1-M/nprogress/0.2.0/nprogress.min.css
+// @require      https://lf9-cdn-tos.bytecdntp.com/cdn/expire-1-M/nprogress/0.2.0/nprogress.min.js#sha256-XWzSUJ+FIQ38dqC06/48sNRwU1Qh3/afjmJ080SneA8=
+// @resource     NPROGRESS_CSS https://lf3-cdn-tos.bytecdntp.com/cdn/expire-1-M/nprogress/0.2.0/nprogress.min.css#sha256-pMhcV6/TBDtqH9E9PWKgS+P32PVguLG8IipkPyqMtfY=
+// @connect      github.com
 // @grant        GM_getResourceText
 // @grant        GM_addStyle
 // @grant        GM_setValue
@@ -112,7 +113,7 @@
     unlockCopy: GM_getValue("unlockCopy", true),
     showMoreNotification: GM_getValue("showMoreNotification", true),
     useBiggerButton: GM_getValue("useBiggerButton", true),
-    autoUpdate: GM_getValue("autoUpdate", true),
+    autoUpdate: GM_getValue("autoUpdate", false),
     showConfigButton: GM_getValue("showConfigButton", true),
   };
 
@@ -512,7 +513,7 @@
                 }>  
                 <span class="slider"></span>  
             </label>  
-            <span class="setting-label">自动检查更新</span>  
+            <span class="setting-label">内置更新检查</span>  
         </div>
         <div class="buttons">  
             <button id="cancelSettings" class="cancel">取消</button>  
