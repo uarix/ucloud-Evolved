@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ucloud-Evolved
 // @namespace    http://tampermonkey.net/
-// @version      0.23
+// @version      0.24
 // @description  主页作业显示所属课程，使用Office 365预览课件，增加通知显示数量，去除悬浮窗，解除复制限制，课件自动下载，批量下载，资源页展示全部下载按钮
 // @author       Quarix
 // @updateURL    https://github.com/uarix/ucloud-Evolved/raw/refs/heads/main/ucloud-Evolved.user.js
@@ -558,6 +558,7 @@
       ).checked;
       settings.useBiggerButton =
         document.getElementById("useBiggerButton").checked;
+      settings.autoUpdate = document.getElementById("autoUpdate").checked;
 
       GM_setValue("autoDownload", settings.autoDownload);
       GM_setValue("autoSwitchOffice", settings.autoSwitchOffice);
@@ -566,6 +567,7 @@
       GM_setValue("unlockCopy", settings.unlockCopy);
       GM_setValue("showMoreNotification", settings.showMoreNotification);
       GM_setValue("useBiggerButton", settings.useBiggerButton);
+      GM_setValue("autoUpdate", settings.autoUpdate);
 
       settingsPanel.classList.remove("visible");
       setTimeout(() => {
