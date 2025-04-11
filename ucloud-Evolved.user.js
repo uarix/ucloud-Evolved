@@ -2,7 +2,7 @@
 // @name         ucloud-Evolved
 // @namespace    http://tampermonkey.net/
 // @version      0.23
-// @description  主页作业显示所属课程，使用Office 365预览课件，课件自动下载，批量下载，展示全部下载按钮
+// @description  主页作业显示所属课程，使用Office 365预览课件，增加通知显示数量，去除悬浮窗，解除复制限制，课件自动下载，批量下载，资源页展示全部下载按钮
 // @author       Quarix
 // @updateURL    https://github.com/uarix/ucloud-Evolved/raw/refs/heads/main/ucloud-Evolved.user.js
 // @downloadURL  https://github.com/uarix/ucloud-Evolved/raw/refs/heads/main/ucloud-Evolved.user.js
