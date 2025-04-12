@@ -14,7 +14,7 @@
   <a href="https://github.com/uarix/ucloud-Evolved/issues?q=is%3Aissue+is%3Aclosed"><img src="https://img.shields.io/github/issues-closed/uarix/ucloud-Evolved?style=flat-square" alt="Closed Issues"></a>
   <br>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
-  <img src="https://img.shields.io/badge/版本-0.24-blue" alt="版本">
+  <img src="https://img.shields.io/badge/版本-0.25-blue" alt="版本">
 </p>
 
 **ucloud-Evolved** 是一款专为 Tampermonkey 插件打造的云邮教学空间优化脚本，专门为北京邮电大学云邮教学空间设计，能够优化学习体验、提高效率，让教学平台使用更加便捷。
@@ -82,15 +82,14 @@
 
 ## 🔄 更新日志
 
-当前版本：**0.24**
+### 当前版本：0.25
+- **新功能**：更好的页面标题
 
-修复自动更新设置
+### 0.24
+- 修复自动更新设置
 
-0.23
-
-增加功能：使用浏览器内置的 PDF 预览组件替换云平台 PDF 预览器
-
-功能逐步完善中，欢迎提交问题反馈和功能建议。
+### 0.23
+- **新增功能**：使用浏览器内置的 PDF 预览组件替换云平台 PDF 预览器
 
 ## 👥 致谢
 

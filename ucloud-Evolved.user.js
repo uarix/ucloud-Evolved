@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         ucloud-Evolved
 // @namespace    http://tampermonkey.net/
-// @version      0.24
-// @description  主页作业显示所属课程，使用Office 365预览课件，增加通知显示数量，去除悬浮窗，解除复制限制，课件自动下载，批量下载，资源页展示全部下载按钮
+// @version      0.25
+// @description  主页作业显示所属课程，使用Office 365预览课件，增加通知显示数量，去除悬浮窗，解除复制限制，课件自动下载，批量下载，资源页展示全部下载按钮，更好的页面标题
 // @author       Quarix
 // @updateURL    https://github.com/uarix/ucloud-Evolved/raw/refs/heads/main/ucloud-Evolved.user.js
 // @downloadURL  https://github.com/uarix/ucloud-Evolved/raw/refs/heads/main/ucloud-Evolved.user.js
@@ -43,7 +43,6 @@
       );
       viewURL.search = viewURLsearch.toString();
     }
-
     if (
       filename.endsWith(".xls") ||
       filename.endsWith(".xlsx") ||
@@ -115,6 +114,7 @@
     useBiggerButton: GM_getValue("useBiggerButton", true),
     autoUpdate: GM_getValue("autoUpdate", false),
     showConfigButton: GM_getValue("showConfigButton", true),
+    betterTitle: GM_getValue("betterTitle", true),
   };
 
   // 辅助变量
@@ -508,6 +508,15 @@
         </div>
         <div class="setting-item">  
             <label class="switch">  
+                <input type="checkbox" id="betterTitle" ${
+                  settings.betterTitle ? "checked" : ""
+                }>  
+                <span class="slider"></span>  
+            </label>  
+            <span class="setting-label">优化页面标题</span>  
+        </div>
+        <div class="setting-item">  
+            <label class="switch">  
                 <input type="checkbox" id="autoUpdate" ${
                   settings.autoUpdate ? "checked" : ""
                 }>  
@@ -559,6 +568,7 @@
       settings.useBiggerButton =
         document.getElementById("useBiggerButton").checked;
       settings.autoUpdate = document.getElementById("autoUpdate").checked;
+      settings.betterTitle = document.getElementById("betterTitle").checked;
 
       GM_setValue("autoDownload", settings.autoDownload);
       GM_setValue("autoSwitchOffice", settings.autoSwitchOffice);
@@ -568,6 +578,7 @@
       GM_setValue("showMoreNotification", settings.showMoreNotification);
       GM_setValue("useBiggerButton", settings.useBiggerButton);
       GM_setValue("autoUpdate", settings.autoUpdate);
+      GM_setValue("betterTitle", settings.betterTitle);
 
       settingsPanel.classList.remove("visible");
       setTimeout(() => {
@@ -1111,6 +1122,34 @@
         "https://ucloud.bupt.edu.cn/uclass/course.html#/resourceLearn"
       )
     ) {
+      if (settings.betterTitle) {
+        function extractFilename(url) {
+          try {
+            const match = url.match(/previewUrl=([^&]+)/);
+            if (!match) return null;
+
+            const previewUrl = decodeURIComponent(match[1]);
+
+            // 从content-disposition中提取文件名
+            const filenameMatch = previewUrl.match(/filename%3D([^&]+)/);
+            if (!filenameMatch) return null;
+
+            return decodeURIComponent(decodeURIComponent(filenameMatch[1]));
+          } catch (e) {
+            return null;
+          }
+        }
+        const url = location.href;
+        const filename = extractFilename(url);
+        const site = JSON.parse(localStorage.getItem("site"));
+        const pageTitle =
+          "[预览] " +
+          (filename || "课件") +
+          " - " +
+          site.siteName +
+          " - 教学云空间";
+        document.title = pageTitle;
+      }
       if (settings.autoClosePopup) {
         const dialogBox = document.querySelector("div.el-message-box__wrapper");
 
@@ -1156,12 +1195,15 @@
       const id = q.get("assignmentId");
       const r = get(id);
       const [userid, token] = getToken();
-
+      const title = q.get("assignmentTitle");
+      if (settings.betterTitle) {
+        const pageTitle = "[作业] " + title + " - " + r.name + " - 教学云空间";
+        document.title = pageTitle;
+      }
       // 显示相关课程信息
       if (r) {
         insert(r);
       } else {
-        const title = q.get("assignmentTitle");
         if (!id || !title) return;
         try {
           const courseInfo = await searchCourse(userid, id, title, token);
@@ -1267,6 +1309,10 @@
       )
     ) {
       try {
+        if (settings.betterTitle) {
+          const pageTitle = "个人主页 - 教学云空间";
+          document.title = pageTitle;
+        }
         // 未完成任务列表
         const list = glist || (await getUndoneList()).data.undoneList;
         if (!list || !Array.isArray(list)) return;
@@ -1339,6 +1385,10 @@
       try {
         const site = JSON.parse(localStorage.getItem("site"));
         if (!site || !site.id) return;
+        if (settings.betterTitle) {
+          const pageTitle = "[课程] " + site.siteName + " - 教学云空间";
+          document.title = pageTitle;
+        }
 
         const id = site.id;
         const resources = await getSiteResource(id);
@@ -1448,6 +1498,11 @@
         }
       } catch (e) {
         console.error("课程主页处理失败", e);
+      }
+    } else if (location.href == "https://ucloud.bupt.edu.cn/#/") {
+      if (settings.betterTitle) {
+        const pageTitle = "首页 - 教学云空间";
+        document.title = pageTitle;
       }
     }
   }
