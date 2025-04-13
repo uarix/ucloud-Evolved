@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         ucloud-Evolved
 // @namespace    http://tampermonkey.net/
-// @version      0.26
-// @description  主页作业显示所属课程，使用Office 365预览课件，增加通知显示数量，去除悬浮窗，解除复制限制，课件自动下载，批量下载，资源页展示全部下载按钮，更好的页面标题
+// @version      0.27
+// @description  主页作业显示所属课程，使用Office 365预览课件，增加通知显示数量，通知按时间排序，去除悬浮窗，解除复制限制，课件自动下载，批量下载，资源页展示全部下载按钮，更好的页面标题
 // @author       Quarix
 // @updateURL    https://github.com/uarix/ucloud-Evolved/raw/refs/heads/main/ucloud-Evolved.user.js
 // @downloadURL  https://github.com/uarix/ucloud-Evolved/raw/refs/heads/main/ucloud-Evolved.user.js
@@ -115,6 +115,11 @@
     autoUpdate: GM_getValue("autoUpdate", false),
     showConfigButton: GM_getValue("showConfigButton", true),
     betterTitle: GM_getValue("betterTitle", true),
+    sortNotificationsByTime: GM_getValue("sortNotificationsByTime", true),
+    betterNotificationHighlight: GM_getValue(
+      "betterNotificationHighlight",
+      true
+    ),
   };
 
   // 辅助变量
@@ -146,13 +151,16 @@
     }
 
     // 监听URL哈希变化
-    let hash = location.hash;
-    setInterval(() => {
-      if (location.hash != hash) {
-        hash = location.hash;
+    window.addEventListener(
+      "hashchange",
+      function () {
         main();
-      }
-    }, 50);
+      },
+      false
+    );
+
+    // 初始加载
+    main();
   }
 
   // 注册菜单命令
@@ -290,146 +298,338 @@
 
   function loadui() {
     GM_addStyle(`  
-        #yzHelper-settings {  
-            position: fixed;  
-            bottom: 20px;  
-            right: 20px;  
-            background: #ffffff;  
-            box-shadow: 0 5px 25px rgba(0, 0, 0, 0.15);  
-            border-radius: 12px;  
-            padding: 20px;  
-            z-index: 9999;  
-            display: none;  
-            width: 300px;  
-            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;  
-            transition: all 0.3s ease;  
-            opacity: 0;  
-            transform: translateY(10px);  
-            color: #333;  
-        }  
-        #yzHelper-settings.visible {  
-            opacity: 1;  
-            transform: translateY(0);  
-        }  
-        #yzHelper-settings h3 {  
-            margin-top: 0;  
-            margin-bottom: 15px;  
-            font-size: 18px;  
-            font-weight: 600;  
-            color: #2c3e50;  
-            padding-bottom: 10px;  
-            border-bottom: 1px solid #eee;  
-        }  
-        #yzHelper-settings .setting-item {  
-            margin-bottom: 16px;  
-            display: flex;  
-            align-items: center;  
-        }  
-        #yzHelper-settings .setting-item:last-of-type {  
-            margin-bottom: 20px;  
-        }  
-        #yzHelper-settings .switch {  
-            position: relative;  
-            display: inline-block;  
-            width: 44px;  
-            height: 24px;  
-            margin-right: 10px;  
-        }  
-        #yzHelper-settings .switch input {   
-            opacity: 0;  
-            width: 0;  
-            height: 0;  
-        }  
-        #yzHelper-settings .slider {  
-            position: absolute;  
-            cursor: pointer;  
-            top: 0;  
-            left: 0;  
-            right: 0;  
-            bottom: 0;  
-            background-color: #ccc;  
-            transition: .3s;  
-            border-radius: 24px;  
-        }  
-        #yzHelper-settings .slider:before {  
-            position: absolute;  
-            content: "";  
-            height: 18px;  
-            width: 18px;  
-            left: 3px;  
-            bottom: 3px;  
-            background-color: white;  
-            transition: .3s;  
-            border-radius: 50%;  
-        }  
-        #yzHelper-settings input:checked + .slider {  
-            background-color: #ffbe00;  
-        }  
-        #yzHelper-settings input:focus + .slider {  
-            box-shadow: 0 0 1px #ffbe00;  
-        }  
-        #yzHelper-settings input:checked + .slider:before {  
-            transform: translateX(20px);  
-        }  
-        #yzHelper-settings .setting-label {  
-            font-size: 14px;  
-        }  
-        #yzHelper-settings .buttons {  
-            display: flex;  
-            justify-content: flex-end;  
-            gap: 10px;  
-        }  
-        #yzHelper-settings button {  
-            background: #ffbe00;  
-            border: none;  
-            padding: 8px 16px;  
-            border-radius: 6px;  
-            cursor: pointer;  
-            font-weight: 500;  
-            color: #fff;  
-            transition: all 0.2s ease;  
-            outline: none;  
-            font-size: 14px;  
-        }  
-        #yzHelper-settings button:hover {  
-            background: #e9ad00;
-        }  
-        #yzHelper-settings button.cancel {  
-            background: #f1f1f1;  
-            color: #666;  
-        }  
-        #yzHelper-settings button.cancel:hover {  
-            background: #e5e5e5;  
-        }  
-        #yzHelper-settings-toggle {  
-            position: fixed;  
-            bottom: 20px;  
-            right: 20px;  
-            background: #ffbe00;  
-            color: #fff;  
-            width: 50px;  
-            height: 50px;  
-            border-radius: 50%;  
-            display: flex;  
-            align-items: center;  
-            justify-content: center;  
-            font-size: 24px;  
-            cursor: pointer;  
-            z-index: 9998;  
-            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);  
-            transition: all 0.3s ease;  
-        }  
-        #yzHelper-settings-toggle:hover {  
-            transform: rotate(30deg);  
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);  
-        }  
-        #yzHelper-version {  
-            position: absolute;  
-            bottom: 15px;  
-            left: 20px;  
-            font-size: 12px;  
-            color: #999;  
-        }  
+      #yzHelper-settings {  
+          position: fixed;  
+          bottom: 20px;  
+          right: 20px;  
+          background: #ffffff;  
+          box-shadow: 0 5px 25px rgba(0, 0, 0, 0.15);  
+          border-radius: 12px;  
+          z-index: 9999;  
+          width: 500px;  
+          height: 450px;  
+          font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;  
+          transition: all 0.3s ease;  
+          opacity: 0;  
+          transform: translateY(10px);  
+          color: #333;  
+          overflow: hidden;  
+          display: flex;  
+          flex-direction: column;  
+          display: none;  
+      }  
+      #yzHelper-settings.visible {  
+          opacity: 1;  
+          transform: translateY(0);  
+      }  
+      
+      #yzHelper-header {  
+          padding: 15px 20px;  
+          border-bottom: 1px solid #eee;  
+          background-color: #ecb000;  
+          color: white;  
+          font-weight: bold;  
+          font-size: 16px;  
+          display: flex;  
+          justify-content: space-between;  
+          align-items: center;  
+      }  
+      
+      #yzHelper-main {  
+          display: flex;  
+          flex: 1;  
+          overflow: hidden;  
+      }  
+      
+      #yzHelper-settings-sidebar {  
+          width: 140px;  
+          background: #f7f7f7;  
+          padding: 15px 0;  
+          border-right: 1px solid #eee;  
+          overflow-y: auto;  
+      }  
+      
+      #yzHelper-settings-sidebar .menu-item {  
+          padding: 12px 15px;  
+          cursor: pointer;  
+          transition: all 0.2s ease;  
+          font-size: 14px;  
+          color: #666;  
+          display: flex;  
+          align-items: center;  
+          gap: 8px;  
+      }  
+      
+      #yzHelper-settings-sidebar .menu-item:hover {  
+          background: #efefef;  
+          color: #333;  
+      }  
+      
+      #yzHelper-settings-sidebar .menu-item.active {  
+          background: #ffbe00;  
+          color: #fff;  
+          font-weight: 500;  
+      }  
+      
+      #yzHelper-settings-sidebar .emoji {  
+          font-size: 16px;  
+      }  
+      
+      #yzHelper-settings-content {  
+          flex: 1;  
+          padding: 20px;  
+          overflow-y: auto;  
+          position: relative;  
+          padding-bottom: 70px; /* Space for buttons */  
+      }  
+  
+      #yzHelper-settings-content .settings-section {  
+          display: none;  
+      }  
+      
+      #yzHelper-settings-content .settings-section.active {  
+          display: block;  
+      }  
+
+      #section-about .about-content {  
+          line-height: 1.6;  
+          font-size: 14px;  
+      }  
+      
+      #section-about h4 {  
+          margin: 16px 0 8px;  
+          font-size: 15px;  
+      }  
+      
+      #section-about ul {  
+          margin: 8px 0;  
+          padding-left: 20px;  
+      }  
+      
+      #section-about li {  
+          margin-bottom: 4px;  
+      }  
+      
+      #section-about .github-link {  
+          display: inline-flex;  
+          align-items: center;  
+          padding: 6px 12px;  
+          background: #f6f8fa;  
+          border: 1px solid rgba(27, 31, 36, 0.15);  
+          border-radius: 6px;  
+          color: #24292f;  
+          text-decoration: none;  
+          font-weight: 500;  
+          transition: background-color 0.2s;  
+      }  
+      
+      #section-about .github-link:hover {  
+          background-color: #f3f4f6;  
+      }  
+      
+      #section-about .github-icon {  
+          margin-right: 6px;  
+          fill: currentColor;  
+      }  
+      
+      
+      #section-about .feedback-note {  
+          margin-top: 14px;  
+          border-top: 1px solid #eaecef;  
+          padding-top: 14px;  
+          font-size: 13px;  
+          color: #57606a;  
+      }  
+      
+      #section-about code {  
+          background: rgba(175, 184, 193, 0.2);  
+          padding: 0.2em 0.4em;  
+          border-radius: 6px;  
+          font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;  
+          font-size: 85%;  
+      }  
+      
+      #yzHelper-settings h3 {  
+          margin-top: 0;  
+          margin-bottom: 15px;  
+          font-size: 18px;  
+          font-weight: 600;  
+          color: #2c3e50;  
+          padding-bottom: 10px;  
+          border-bottom: 1px solid #eee;  
+      }  
+      #yzHelper-settings .setting-item {  
+          margin-bottom: 16px;  
+      }  
+      #yzHelper-settings .setting-toggle {  
+          display: flex;  
+          align-items: center;  
+      }  
+      #yzHelper-settings .setting-item:last-of-type {  
+          margin-bottom: 20px;  
+      }  
+      #yzHelper-settings .switch {  
+          position: relative;  
+          display: inline-block;  
+          width: 44px;  
+          height: 24px;  
+          margin-right: 10px;  
+      }  
+      #yzHelper-settings .switch input {   
+          opacity: 0;  
+          width: 0;  
+          height: 0;  
+      }  
+      #yzHelper-settings .slider {  
+          position: absolute;  
+          cursor: pointer;  
+          top: 0;  
+          left: 0;  
+          right: 0;  
+          bottom: 0;  
+          background-color: #ccc;  
+          transition: .3s;  
+          border-radius: 24px;  
+      }  
+      #yzHelper-settings .slider:before {  
+          position: absolute;  
+          content: "";  
+          height: 18px;  
+          width: 18px;  
+          left: 3px;  
+          bottom: 3px;  
+          background-color: white;  
+          transition: .3s;  
+          border-radius: 50%;  
+      }  
+      #yzHelper-settings input:checked + .slider {  
+          background-color: #ffbe00;  
+      }  
+      #yzHelper-settings input:focus + .slider {  
+          box-shadow: 0 0 1px #ffbe00;  
+      }  
+      #yzHelper-settings input:checked + .slider:before {  
+          transform: translateX(20px);  
+      }  
+      #yzHelper-settings .setting-label {  
+          font-size: 14px;  
+          cursor: pointer;  
+      }  
+      
+      #yzHelper-settings .setting-description {  
+        display: block; /* 始终保持在DOM中 */  
+        margin-left: 54px;  
+        font-size: 12px;  
+        color: #666;  
+        background: #f9f9f9;  
+        border-left: 3px solid #ffbe00;  
+        border-radius: 0 4px 4px 0;  
+        max-height: 0;  
+        overflow: hidden;  
+        opacity: 0;  
+        transition: all 0.3s ease;  
+        padding: 0 12px;  
+      }  
+      
+      #yzHelper-settings .setting-description.visible {  
+        max-height: 100px;  
+        opacity: 1;  
+        margin-top: 8px;  
+        padding: 8px 12px;  
+      }  
+      
+      #yzHelper-settings .buttons {  
+          display: flex;  
+          justify-content: flex-end;  
+          gap: 10px;  
+          position: fixed;
+          bottom: 0px;  
+          right: 25px;  
+          background: white;  
+          padding: 10px 0;  
+          width: calc(100% - 180px);  
+          border-top: 1px solid #f5f5f5;  
+          box-sizing: border-box;  
+      }  
+      #yzHelper-settings button {  
+          background: #ffbe00;  
+          border: none;  
+          padding: 8px 16px;  
+          border-radius: 6px;  
+          cursor: pointer;  
+          font-weight: 500;  
+          color: #fff;  
+          transition: all 0.2s ease;  
+          outline: none;  
+          font-size: 14px;  
+      }  
+      #yzHelper-settings button:hover {  
+          background: #e9ad00;  
+      }  
+      #yzHelper-settings button.cancel {  
+          background: #f1f1f1;  
+          color: #666;  
+      }  
+      #yzHelper-settings button.cancel:hover {  
+          background: #e5e5e5;  
+      }  
+      #yzHelper-settings-toggle {  
+          position: fixed;  
+          bottom: 20px;  
+          right: 20px;  
+          background: #ffbe00;  
+          color: #fff;  
+          width: 50px;  
+          height: 50px;  
+          border-radius: 50%;  
+          display: flex;  
+          align-items: center;  
+          justify-content: center;  
+          font-size: 24px;  
+          cursor: pointer;  
+          z-index: 9998;  
+          box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);  
+          transition: all 0.3s ease;  
+      }  
+      #yzHelper-settings-toggle:hover {  
+          transform: rotate(30deg);  
+          box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);  
+      }  
+      #yzHelper-settings .setting-item.disabled .setting-toggle,  
+      #yzHelper-settings .setting-item .setting-toggle:has(input:disabled) {  
+          opacity: 0.7;  
+      }  
+      #yzHelper-settings .setting-item.disabled .switch,  
+      #yzHelper-settings .setting-item:has(input:disabled) .switch {  
+          cursor: not-allowed;  
+      }  
+
+      #yzHelper-settings input:disabled + .slider {  
+          background-color: #ffbe00;  
+          opacity: 0.5;  
+          cursor: not-allowed; 
+      }  
+
+      #yzHelper-settings input:disabled + .slider:before {  
+          background-color: #f0f0f0;  
+      }  
+
+      #yzHelper-settings .setting-item:has(input:disabled) .setting-label:after {  
+          content: " 🔒";  
+          font-size: 12px;  
+      }  
+
+      #yzHelper-settings .setting-item:has(input:disabled) .setting-description {  
+          border-left-color: #ccc;  
+          font-style: italic;  
+      }  
+      #yzHelper-version {  
+          position: absolute;  
+          bottom: 15px;  
+          left: 20px;  
+          font-size: 12px;  
+          color: #999;  
+      }  
     `);
 
     // 设置面板
@@ -441,98 +641,316 @@
 
     const settingsPanel = document.createElement("div");
     settingsPanel.id = "yzHelper-settings";
-    settingsPanel.innerHTML = `  
-        <h3>云邮教学空间助手设置</h3>  
-        <div class="setting-item">  
-            <label class="switch">  
-                <input type="checkbox" id="autoDownload" ${
-                  settings.autoDownload ? "checked" : ""
-                }>  
-                <span class="slider"></span>  
-            </label>  
-            <span class="setting-label">预览课件时自动下载</span>  
-        </div>  
-        <div class="setting-item">  
-            <label class="switch">  
-                <input type="checkbox" id="autoSwitchOffice" ${
-                  settings.autoSwitchOffice ? "checked" : ""
-                }>  
-                <span class="slider"></span>  
-            </label>  
-            <span class="setting-label">使用 Office365 预览课件</span>  
-        </div>  
-        <div class="setting-item">  
-            <label class="switch">  
-                <input type="checkbox" id="autoClosePopup" ${
-                  settings.autoClosePopup ? "checked" : ""
-                }>  
-                <span class="slider"></span>  
-            </label>  
-            <span class="setting-label">自动关闭预览弹窗</span>  
-        </div>
-        <div class="setting-item">  
-            <label class="switch">  
-                <input type="checkbox" id="hideTimer" ${
-                  settings.hideTimer ? "checked" : ""
-                }>  
-                <span class="slider"></span>  
-            </label>  
-            <span class="setting-label">隐藏预览界面倒计时</span>  
-        </div>
-        <div class="setting-item">  
-            <label class="switch">  
-                <input type="checkbox" id="unlockCopy" ${
-                  settings.unlockCopy ? "checked" : ""
-                }>  
-                <span class="slider"></span>  
-            </label>  
-            <span class="setting-label">解除复制限制</span>  
-        </div>
-        <div class="setting-item">  
-            <label class="switch">  
-                <input type="checkbox" id="showMoreNotification" ${
-                  settings.showMoreNotification ? "checked" : ""
-                }>  
-                <span class="slider"></span>  
-            </label>  
-            <span class="setting-label">显示更多的通知</span>  
-        </div>
-        <div class="setting-item">  
-            <label class="switch">  
-                <input type="checkbox" id="useBiggerButton" ${
-                  settings.useBiggerButton ? "checked" : ""
-                }>  
-                <span class="slider"></span>  
-            </label>  
-            <span class="setting-label">加大翻页按钮尺寸</span>  
-        </div>
-        <div class="setting-item">  
-            <label class="switch">  
-                <input type="checkbox" id="betterTitle" ${
-                  settings.betterTitle ? "checked" : ""
-                }>  
-                <span class="slider"></span>  
-            </label>  
-            <span class="setting-label">优化页面标题</span>  
-        </div>
-        <div class="setting-item">  
-            <label class="switch">  
-                <input type="checkbox" id="autoUpdate" ${
-                  settings.autoUpdate ? "checked" : ""
-                }>  
-                <span class="slider"></span>  
-            </label>  
-            <span class="setting-label">内置更新检查</span>  
-        </div>
-        <div class="buttons">  
-            <button id="cancelSettings" class="cancel">取消</button>  
-            <button id="saveSettings">保存设置</button>  
-        </div>  
-        <div id="yzHelper-version">当前版本：${GM_info.script.version}</div>  
+
+    const header = `  
+      <div id="yzHelper-header">  
+        <span>云邮教学空间助手</span>  
+        <span id="yzHelper-version">v${GM_info.script.version}</span>  
+      </div>  
     `;
+
+    const mainContent = `  
+      <div id="yzHelper-main">  
+        <div id="yzHelper-settings-sidebar">  
+            <div class="menu-item active" data-section="preview">  
+                <span class="emoji">🖼️</span>  
+                <span>预览功能</span>  
+            </div>  
+            <div class="menu-item" data-section="notification">  
+                <span class="emoji">📢</span>  
+                <span>通知功能</span>  
+            </div>  
+            <div class="menu-item" data-section="ui">  
+                <span class="emoji">🎨</span>  
+                <span>界面优化</span>  
+            </div>  
+            <div class="menu-item" data-section="system">  
+                <span class="emoji">⚙️</span>  
+                <span>系统设置</span>  
+            </div>  
+            <div class="menu-item" data-section="about">  
+                <span class="emoji">ℹ️</span>  
+                <span>关于助手</span>  
+            </div>  
+        </div>  
+    
+        <div id="yzHelper-settings-content">  
+            <!-- 预览功能设置 -->  
+            <div class="settings-section active" id="section-preview">  
+                <h3>🖼️ 预览功能设置</h3>  
+                <div class="setting-item">  
+                    <div class="setting-toggle">  
+                      <label class="switch">  
+                          <input type="checkbox" id="autoDownload" ${
+                            settings.autoDownload ? "checked" : ""
+                          }>  
+                          <span class="slider"></span>  
+                      </label>  
+                      <span class="setting-label" data-for="description-autoDownload">预览课件时自动下载</span>  
+                    </div>  
+                    <div class="setting-description" id="description-autoDownload">  
+                      当打开课件预览时，自动触发下载操作，方便存储课件到本地。  
+                    </div>  
+                </div>  
+                <div class="setting-item">  
+                    <div class="setting-toggle">  
+                      <label class="switch">  
+                          <input type="checkbox" id="autoSwitchOffice" ${
+                            settings.autoSwitchOffice ? "checked" : ""
+                          }>  
+                          <span class="slider"></span>  
+                      </label>  
+                      <span class="setting-label" data-for="description-autoSwitchOffice">使用 Office365 预览课件</span>  
+                    </div>  
+                    <div class="setting-description" id="description-autoSwitchOffice">  
+                      使用微软 Office365 在线服务预览 Office 文档，提供更好的浏览体验。  
+                    </div>  
+                </div>  
+                <div class="setting-item">  
+                    <div class="setting-toggle">  
+                      <label class="switch">  
+                          <input type="checkbox" id="autoClosePopup" ${
+                            settings.autoClosePopup ? "checked" : ""
+                          }>  
+                          <span class="slider"></span>  
+                      </label>  
+                      <span class="setting-label" data-for="description-autoClosePopup">自动关闭预览弹窗</span>  
+                    </div>  
+                    <div class="setting-description" id="description-autoClosePopup">  
+                      下载课件后自动关闭预览弹窗，简化操作流程。  
+                    </div>  
+                </div>  
+                <div class="setting-item">  
+                    <div class="setting-toggle">  
+                      <label class="switch">  
+                          <input type="checkbox" id="hideTimer" ${
+                            settings.hideTimer ? "checked" : ""
+                          }>  
+                          <span class="slider"></span>  
+                      </label>  
+                      <span class="setting-label" data-for="description-hideTimer">隐藏预览界面倒计时</span>  
+                    </div>  
+                    <div class="setting-description" id="description-hideTimer">  
+                      隐藏预览界面中的倒计时提示，获得无干扰的阅读体验。  
+                    </div>  
+                </div>  
+                <div class="setting-item">  
+                    <div class="setting-toggle">  
+                      <label class="switch">  
+                          <input type="checkbox" id="unlockCopy" ${
+                            settings.unlockCopy ? "checked" : ""
+                          }>  
+                          <span class="slider"></span>  
+                      </label>  
+                      <span class="setting-label" data-for="description-unlockCopy">解除复制限制</span>  
+                    </div>  
+                    <div class="setting-description" id="description-unlockCopy">  
+                      解除课件预览时的复制限制，方便摘录内容进行学习笔记。  
+                    </div>  
+                </div>  
+            </div>  
+            
+            <!-- 通知功能设置 -->  
+            <div class="settings-section" id="section-notification">  
+                <h3>📢 通知功能设置</h3>  
+                <div class="setting-item">  
+                    <div class="setting-toggle">  
+                      <label class="switch">  
+                          <input type="checkbox" id="showMoreNotification" ${
+                            settings.showMoreNotification ? "checked" : ""
+                          }>  
+                          <span class="slider"></span>  
+                      </label>  
+                      <span class="setting-label" data-for="description-showMoreNotification">显示更多的通知</span>  
+                    </div>  
+                    <div class="setting-description" id="description-showMoreNotification">  
+                      在通知列表中显示更多的历史通知，不再受限于默认显示数量。  
+                    </div>  
+                </div>  
+                <div class="setting-item">  
+                    <div class="setting-toggle">  
+                      <label class="switch">  
+                          <input type="checkbox" id="sortNotificationsByTime" ${
+                            settings.sortNotificationsByTime ? "checked" : ""
+                          }>  
+                          <span class="slider"></span>  
+                      </label>  
+                      <span class="setting-label" data-for="description-sortNotificationsByTime">通知按照时间排序</span>  
+                    </div>  
+                    <div class="setting-description" id="description-sortNotificationsByTime">  
+                      将通知按照时间先后顺序排列，更容易找到最新或最早的通知。  
+                    </div>  
+                </div>  
+                <div class="setting-item">  
+                    <div class="setting-toggle">  
+                      <label class="switch">  
+                          <input type="checkbox" id="betterNotificationHighlight" ${
+                            settings.betterNotificationHighlight
+                              ? "checked"
+                              : ""
+                          }>  
+                          <span class="slider"></span>  
+                      </label>  
+                      <span class="setting-label" data-for="description-betterNotificationHighlight">优化未读通知高亮</span>  
+                    </div>  
+                    <div class="setting-description" id="description-betterNotificationHighlight">  
+                      增强未读通知的视觉提示，使未读消息更加醒目，不易遗漏重要信息。  
+                    </div>  
+                </div>  
+            </div>  
+            
+            <!-- 界面优化设置 -->  
+            <div class="settings-section" id="section-ui">  
+                <h3>🎨 界面优化设置</h3>  
+                <div class="setting-item">  
+                    <div class="setting-toggle">  
+                      <label class="switch">  
+                          <input type="checkbox" id="useBiggerButton" ${
+                            settings.useBiggerButton ? "checked" : ""
+                          }>  
+                          <span class="slider"></span>  
+                      </label>  
+                      <span class="setting-label" data-for="description-useBiggerButton">加大翻页按钮尺寸</span>  
+                    </div>  
+                    <div class="setting-description" id="description-useBiggerButton">  
+                      增大页面翻页按钮的尺寸和点击区域，提升操作便捷性。  
+                    </div>  
+                </div>  
+                <div class="setting-item">  
+                    <div class="setting-toggle">  
+                      <label class="switch">  
+                          <input type="checkbox" id="betterTitle" ${
+                            settings.betterTitle ? "checked" : ""
+                          }>  
+                          <span class="slider"></span>  
+                      </label>  
+                      <span class="setting-label" data-for="description-betterTitle">优化页面标题</span>  
+                    </div>  
+                    <div class="setting-description" id="description-betterTitle">  
+                      优化浏览器标签页的标题显示，更直观地反映当前页面内容。  
+                    </div>  
+                </div>  
+            </div>  
+            
+            <!-- 系统设置 -->  
+            <div class="settings-section" id="section-system">  
+                <h3>⚙️ 系统设置</h3>  
+                <div class="setting-item">  
+                    <div class="setting-toggle">  
+                      <label class="switch">  
+                          <input type="checkbox" id="fixTicketBug" checked disabled>  
+                          <span class="slider"></span>  
+                      </label>  
+                      <span class="setting-label" data-for="description-fixTicketBug">修复ticket跳转问题</span>  
+                    </div>  
+                    <div class="setting-description" id="description-fixTicketBug">  
+                      修复登录过期后，重新登录出现无法获取ticket提示的问题。  
+                    </div>  
+                </div>  
+                <div class="setting-item">  
+                    <div class="setting-toggle">  
+                      <label class="switch">  
+                          <input type="checkbox" id="autoUpdate" ${
+                            settings.autoUpdate ? "checked" : ""
+                          }>  
+                          <span class="slider"></span>  
+                      </label>  
+                      <span class="setting-label" data-for="description-autoUpdate">内置更新检查</span>  
+                    </div>  
+                    <div class="setting-description" id="description-autoUpdate">  
+                      定期检查脚本更新，确保您始终使用最新版本的功能和修复。  
+                    </div>  
+                </div>  
+            </div>  
+            
+            <!-- 关于助手 -->  
+            <div class="settings-section" id="section-about">  
+                <h3>ℹ️ 关于云邮教学空间助手</h3>  
+                <div class="about-content">  
+                    <p>云邮教学空间助手是一款专为云邮教学空间平台设计的浏览器增强脚本。</p>  
+                    
+                    <h4>🚀 主要功能</h4>  
+                    <ul>  
+                        <li>课件预览增强 - 提供更流畅的课件浏览体验</li>  
+                        <li>通知管理优化 - 更清晰地整理和显示重要通知</li>  
+                        <li>界面体验提升 - 优化布局与交互，提高使用效率</li>  
+                    </ul>  
+                    
+                    <h4>🔗 相关链接</h4>  
+                    <p>  
+                        <a href="https://github.com/uarix/ucloud-Evolved/" target="_blank" class="github-link">  
+                            <svg class="github-icon" height="16" width="16" viewBox="0 0 16 16" aria-hidden="true">  
+                                <path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"></path>  
+                            </svg>  
+                            <span>GitHub 项目主页</span>  
+                        </a>  
+                    </p>  
+                    
+                    <p class="feedback-note">  
+                        如有问题或建议，请通过   
+                        <a href="https://github.com/uarix/ucloud-Evolved/issues" target="_blank">GitHub Issues</a>   
+                        提交反馈。  
+                    </p>  
+                </div>  
+            </div>  
+            
+            <div class="buttons">  
+                <button id="cancelSettings" class="cancel">取消</button>  
+                <button id="saveSettings">保存设置</button>  
+            </div>  
+        </div>  
+      </div>  
+    `;
+
+    settingsPanel.innerHTML = header + mainContent;
     document.body.appendChild(settingsPanel);
 
-    // 面板交互
+    // 菜单切换功能
+    document
+      .querySelectorAll("#yzHelper-settings-sidebar .menu-item")
+      .forEach((item) => {
+        item.addEventListener("click", function () {
+          // 移除所有菜单项的活动状态
+          document
+            .querySelectorAll("#yzHelper-settings-sidebar .menu-item")
+            .forEach((i) => {
+              i.classList.remove("active");
+            });
+          document
+            .querySelectorAll("#yzHelper-settings-content .settings-section")
+            .forEach((section) => {
+              section.classList.remove("active");
+            });
+
+          this.classList.add("active");
+          const sectionId = "section-" + this.getAttribute("data-section");
+          document.getElementById(sectionId).classList.add("active");
+
+          // 隐藏所有设置描述
+          document.querySelectorAll(".setting-description").forEach((desc) => {
+            desc.classList.remove("visible");
+          });
+        });
+      });
+
+    // 设置描述显示/隐藏功能
+    document.querySelectorAll(".setting-label").forEach((label) => {
+      label.addEventListener("click", function () {
+        const descriptionId = this.getAttribute("data-for");
+        const description = document.getElementById(descriptionId);
+
+        // 隐藏所有其他描述
+        document.querySelectorAll(".setting-description").forEach((desc) => {
+          if (desc.id !== descriptionId) {
+            desc.classList.remove("visible");
+          }
+        });
+
+        // 切换当前描述的可见性
+        description.classList.toggle("visible");
+      });
+    });
+
     settingsToggle.addEventListener("click", () => {
       const isVisible = settingsPanel.classList.contains("visible");
       if (isVisible) {
@@ -541,7 +959,7 @@
           settingsPanel.style.display = "none";
         }, 300);
       } else {
-        settingsPanel.style.display = "block";
+        settingsPanel.style.display = "flex";
         void settingsPanel.offsetWidth;
         settingsPanel.classList.add("visible");
       }
@@ -555,30 +973,14 @@
     });
 
     document.getElementById("saveSettings").addEventListener("click", () => {
-      settings.autoDownload = document.getElementById("autoDownload").checked;
-      settings.autoSwitchOffice =
-        document.getElementById("autoSwitchOffice").checked;
-      settings.autoClosePopup =
-        document.getElementById("autoClosePopup").checked;
-      settings.hideTimer = document.getElementById("hideTimer").checked;
-      settings.unlockCopy = document.getElementById("unlockCopy").checked;
-      settings.showMoreNotification = document.getElementById(
-        "showMoreNotification"
-      ).checked;
-      settings.useBiggerButton =
-        document.getElementById("useBiggerButton").checked;
-      settings.autoUpdate = document.getElementById("autoUpdate").checked;
-      settings.betterTitle = document.getElementById("betterTitle").checked;
-
-      GM_setValue("autoDownload", settings.autoDownload);
-      GM_setValue("autoSwitchOffice", settings.autoSwitchOffice);
-      GM_setValue("autoClosePopup", settings.autoClosePopup);
-      GM_setValue("hideTimer", settings.hideTimer);
-      GM_setValue("unlockCopy", settings.unlockCopy);
-      GM_setValue("showMoreNotification", settings.showMoreNotification);
-      GM_setValue("useBiggerButton", settings.useBiggerButton);
-      GM_setValue("autoUpdate", settings.autoUpdate);
-      GM_setValue("betterTitle", settings.betterTitle);
+      Array.from(
+        document
+          .querySelector("#yzHelper-settings-content")
+          .querySelectorAll('input[type="checkbox"]:not(:disabled)')
+      ).forEach((checkbox) => {
+        settings[checkbox.id] = checkbox.checked;
+        GM_setValue(checkbox.id, checkbox.checked);
+      });
 
       settingsPanel.classList.remove("visible");
       setTimeout(() => {
@@ -586,48 +988,49 @@
         showNotification("设置已保存", "刷新页面后生效");
       }, 300);
     });
-
-    // 通知函数
-    function showNotification(title, message) {
-      const notification = document.createElement("div");
-      notification.style.cssText = `  
-            position: fixed;  
-            bottom: 80px;    
-            right: 20px;  
-            background: #4CAF50;  
-            color: white;  
-            padding: 15px 20px;  
-            border-radius: 8px;  
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);  
-            z-index: 10000;  
-            font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;  
-            max-width: 300px;  
-            opacity: 0;  
-            transform: translateY(-10px);  
-            transition: all 0.3s ease;  
-        `;
-
-      notification.innerHTML = `  
-            <div style="font-weight: bold; margin-bottom: 5px;">${title}</div>  
-            <div style="font-size: 14px;">${message}</div>  
-        `;
-
-      document.body.appendChild(notification);
-
-      void notification.offsetWidth;
-
-      notification.style.opacity = "1";
-      notification.style.transform = "translateY(0)";
-
-      setTimeout(() => {
-        notification.style.opacity = "0";
-        notification.style.transform = "translateY(-10px)";
-        setTimeout(() => {
-          document.body.removeChild(notification);
-        }, 300);
-      }, 3000);
-    }
   }
+
+  // 通知函数
+  function showNotification(title, message) {
+    const notification = document.createElement("div");
+    notification.style.cssText = `  
+          position: fixed;  
+          bottom: 80px;    
+          right: 20px;  
+          background: #4CAF50;  
+          color: white;  
+          padding: 15px 20px;  
+          border-radius: 8px;  
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15);  
+          z-index: 10000;  
+          font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;  
+          max-width: 300px;  
+          opacity: 0;  
+          transform: translateY(-10px);  
+          transition: all 0.3s ease;  
+      `;
+
+    notification.innerHTML = `  
+          <div style="font-weight: bold; margin-bottom: 5px;">${title}</div>  
+          <div style="font-size: 14px;">${message}</div>  
+      `;
+
+    document.body.appendChild(notification);
+
+    void notification.offsetWidth;
+
+    notification.style.opacity = "1";
+    notification.style.transform = "translateY(0)";
+
+    setTimeout(() => {
+      notification.style.opacity = "0";
+      notification.style.transform = "translateY(-10px)";
+      setTimeout(() => {
+        document.body.removeChild(notification);
+      }, 300);
+    }, 3000);
+  }
+
   // 获取Token
   function getToken() {
     const cookieMap = new Map();
@@ -1067,6 +1470,24 @@
       max-height: none !important; 
     }
     `);
+    if (settings.betterNotificationHighlight) {
+      GM_addStyle(`
+      .notification-with-dot {  
+        background-color: #fff8f8 !important;  
+        border-left: 5px solid #f56c6c !important;  
+        box-shadow: 0 2px 6px rgba(245, 108, 108, 0.2) !important;  
+        padding: 0 22px !important;  
+        margin-bottom: 8px !important;  
+        border-radius: 4px !important;  
+        transition: all 0.3s ease !important;  
+    }  
+    .notification-with-dot:hover {  
+        background-color: #fff0f0 !important;  
+        box-shadow: 0 4px 12px rgba(245, 108, 108, 0.3) !important;  
+        transform: translateY(-2px) !important;  
+    }  
+    `);
+    }
     if (settings.enableTextSelection) {
       GM_addStyle(`  
         .el-checkbox, .el-checkbox-button__inner, .el-empty__image img, .el-radio,  
@@ -1506,6 +1927,86 @@
       if (settings.betterTitle) {
         const pageTitle = "首页 - 教学云空间";
         document.title = pageTitle;
+      }
+    }
+    // 通知页
+    else if (
+      location.href ==
+      "https://ucloud.bupt.edu.cn/uclass/index.html#/set/notice_fullpage"
+    ) {
+      if (settings.betterTitle) {
+        const pageTitle = "通知 - 教学云空间";
+        document.title = pageTitle;
+      }
+
+      function processNotifications() {
+        const noticeContainer = document.querySelector(
+          "#layout-container > div.main-content > div.router-container > div > div > div.setNotice-body > ul"
+        );
+        if (!noticeContainer) {
+          console.log("通知容器未找到");
+          return;
+        }
+        const noticeItems = Array.from(noticeContainer.querySelectorAll("li"));
+        if (noticeItems.length === 0) {
+          console.log("未找到通知项");
+          return;
+        }
+        if (settings.sortNotificationsByTime) {
+          noticeItems.sort((a, b) => {
+            const timeA = a.querySelector("span._left-time");
+            const timeB = b.querySelector("span._left-time");
+            if (!timeA || !timeB) {
+              return 0;
+            }
+            const timeTextA = timeA.textContent.trim();
+            const timeTextB = timeB.textContent.trim();
+            const dateA = new Date(timeTextA);
+            const dateB = new Date(timeTextB);
+            return dateB - dateA;
+          });
+        }
+        noticeItems.forEach((item) => {
+          if (settings.betterNotificationHighlight) {
+            const hasRedDot = item.querySelector(
+              "div.el-badge sup.el-badge__content.is-dot"
+            );
+            if (hasRedDot) {
+              item.classList.remove("notification-with-dot");
+              item.classList.add("notification-with-dot");
+            } else {
+              item.classList.remove("notification-with-dot");
+            }
+          }
+          noticeContainer.appendChild(item);
+        });
+      }
+      if (
+        settings.sortNotificationsByTime ||
+        settings.betterNotificationHighlight
+      ) {
+        // 等待通知元素加载好了再处理
+        const loadingMaskSelector =
+          "#layout-container > div.main-content > div.router-container > div > div > div.setNotice-body > div.el-loading-mask";
+        const observer = new MutationObserver((mutations) => {
+          const loadingMask = document.querySelector(loadingMaskSelector);
+          if (loadingMask && loadingMask.style.display === "none") {
+            processNotifications();
+            observer.disconnect();
+          }
+        });
+
+        const loadingMask = document.querySelector(loadingMaskSelector);
+        if (loadingMask && loadingMask.style.display === "none") {
+          processNotifications();
+        } else {
+          observer.observe(document.body, {
+            attributes: true,
+            attributeFilter: ["style"],
+            subtree: true,
+          });
+          setTimeout(() => observer.disconnect(), 10000);
+        }
       }
     }
   }
