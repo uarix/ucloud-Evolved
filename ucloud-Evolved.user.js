@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ucloud-Evolved
 // @namespace    http://tampermonkey.net/
-// @version      0.25
+// @version      0.26
 // @description  主页作业显示所属课程，使用Office 365预览课件，增加通知显示数量，去除悬浮窗，解除复制限制，课件自动下载，批量下载，资源页展示全部下载按钮，更好的页面标题
 // @author       Quarix
 // @updateURL    https://github.com/uarix/ucloud-Evolved/raw/refs/heads/main/ucloud-Evolved.user.js
@@ -1063,6 +1063,9 @@
     .teacher-home-page .home-left-container .in-progress-section .in-progress-body .in-progress-item .activity-box .activity-title {  
       height: auto !important;
     }  
+    #layout-container > div.main-content > div.router-container > div > div.my-course-page {
+      max-height: none !important; 
+    }
     `);
     if (settings.enableTextSelection) {
       GM_addStyle(`  
