@@ -601,7 +601,6 @@
       }  
       #yzHelper-settings .setting-item.disabled .switch,  
       #yzHelper-settings .setting-item:has(input:disabled) .switch {  
-          cursor: not-allowed;  
       }  
 
       #yzHelper-settings input:disabled + .slider {  
