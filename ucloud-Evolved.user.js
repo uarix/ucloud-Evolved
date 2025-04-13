@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ucloud-Evolved
 // @namespace    http://tampermonkey.net/
-// @version      0.27
+// @version      0.28
 // @description  主页作业显示所属课程，使用Office 365预览课件，增加通知显示数量，通知按时间排序，去除悬浮窗，解除复制限制，课件自动下载，批量下载，资源页展示全部下载按钮，更好的页面标题
 // @author       Quarix
 // @updateURL    https://github.com/uarix/ucloud-Evolved/raw/refs/heads/main/ucloud-Evolved.user.js
@@ -598,10 +598,7 @@
       #yzHelper-settings .setting-item.disabled .setting-toggle,  
       #yzHelper-settings .setting-item .setting-toggle:has(input:disabled) {  
           opacity: 0.7;  
-      }  
-      #yzHelper-settings .setting-item.disabled .switch,  
-      #yzHelper-settings .setting-item:has(input:disabled) .switch {  
-      }  
+      }
 
       #yzHelper-settings input:disabled + .slider {  
           background-color: #ffbe00;  
@@ -1523,6 +1520,12 @@
       }
       .teacher-home-page .home-left-container .my-lesson-section .my-lesson-header .header-control .banner-control-btn span,.teacher-home-page .home-left-container .in-progress-section .in-progress-header .header-control .banner-control-btn span {
         font-size: 22px !important;
+      }
+      .el-icon-arrow-left, .el-icon-arrow-right {
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
     `);
     }
