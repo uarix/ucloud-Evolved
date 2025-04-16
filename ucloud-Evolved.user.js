@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ucloud-Evolved
 // @namespace    http://tampermonkey.net/
-// @version      0.30
+// @version      0.31
 // @description  主页作业显示所属课程，使用Office 365预览课件，增加通知显示数量，通知按时间排序，去除悬浮窗，解除复制限制，课件自动下载，批量下载，资源页展示全部下载按钮，更好的页面标题
 // @author       Quarix
 // @updateURL    https://github.com/uarix/ucloud-Evolved/raw/refs/heads/main/ucloud-Evolved.user.js
@@ -718,6 +718,7 @@
       addHomeworkSource: GM_getValue("home_addHomeworkSource", true),
       useBiggerButton: GM_getValue("home_useBiggerButton", true),
       makeClassClickable: GM_getValue("home_makeClassClickable", true),
+      useWheelPageTurner: GM_getValue("home_useWheelPageTurner", true),
     },
     course: {
       addBatchDownload: GM_getValue("course_addBatchDownload", true),
@@ -1356,6 +1357,20 @@
                     </div>  
                     <div class="setting-description" id="description-home_makeClassClickable">  
                     点击"我的课程"跳转课程页。  
+                    </div>  
+                </div>  
+                <div class="setting-item">  
+                    <div class="setting-toggle">  
+                      <label class="switch">  
+                          <input type="checkbox" id="home_useWheelPageTurner" ${
+                            settings.home.useWheelPageTurner ? "checked" : ""
+                          }>  
+                          <span class="slider"></span>  
+                      </label>  
+                      <span class="setting-label" data-for="description-home_useWheelPageTurner">使用鼠标滚轮翻页</span>  
+                    </div>  
+                    <div class="setting-description" id="description-home_useWheelPageTurner">  
+                    可以使用鼠标滚轮来翻动个人主页的“本学期课程”和“待办”。  
                     </div>  
                 </div>  
             </div>  
@@ -2606,6 +2621,80 @@
           }
         });
       }
+      function wheelPageTurner() {
+        const pageConfigs = [
+          {
+            // 待办
+            targetSelector:
+              "#layout-container > div.main-content > div.router-container > div > div.teacher-home-page > div.home-left-container.home-inline-block > div.in-progress-section.home-card > div.in-progress-body",
+            prevPageSelector:
+              '#layout-container > div.main-content > div.router-container > div > div.teacher-home-page > div.home-left-container.home-inline-block > div.in-progress-section.home-card > div.in-progress-header div[title="上一页"]',
+            nextPageSelector:
+              '#layout-container > div.main-content > div.router-container > div > div.teacher-home-page > div.home-left-container.home-inline-block > div.in-progress-section.home-card > div.in-progress-header div[title="下一页"]',
+            pageIndicatorSelector:
+              "#layout-container > div.main-content > div.router-container > div > div.teacher-home-page > div.home-left-container.home-inline-block > div.in-progress-section.home-card > div.in-progress-header div.banner-indicator.home-inline-block",
+          },
+          {
+            // 本学期课程
+            targetSelector:
+              "#layout-container > div.main-content > div.router-container > div > div.teacher-home-page > div.home-left-container.home-inline-block > div.my-lesson-section.home-card > div.my-lesson-body",
+            prevPageSelector:
+              '#layout-container > div.main-content > div.router-container > div > div.teacher-home-page > div.home-left-container.home-inline-block > div.my-lesson-section.home-card > div.my-lesson-header div[title="上一页"]',
+            nextPageSelector:
+              '#layout-container > div.main-content > div.router-container > div > div.teacher-home-page > div.home-left-container.home-inline-block > div.my-lesson-section.home-card > div.my-lesson-header div[title="下一页"]',
+            pageIndicatorSelector:
+              "#layout-container > div.main-content > div.router-container > div > div.teacher-home-page > div.home-left-container.home-inline-block > div.my-lesson-section.home-card > div.my-lesson-header div.banner-indicator.home-inline-block",
+          },
+        ];
+        function parsePageIndicator(pageIndicator) {
+          const text = pageIndicator.textContent.trim();
+          const [currentPage, totalPages] = text.split("/").map(Number);
+          return { currentPage, totalPages };
+        }
+        function createWheelHandler(
+          prevPageElement,
+          nextPageElement,
+          pageIndicator
+        ) {
+          return function (event) {
+            const { currentPage, totalPages } =
+              parsePageIndicator(pageIndicator);
+            if (event.deltaY > 0 && currentPage < totalPages) {
+              event.preventDefault();
+              nextPageElement.click();
+            } else if (event.deltaY < 0 && currentPage > 1) {
+              event.preventDefault();
+              prevPageElement.click();
+            }
+          };
+        }
+        pageConfigs.forEach((config) => {
+          const targetDiv = document.querySelector(config.targetSelector);
+          const prevPageElement = document.querySelector(
+            config.prevPageSelector
+          );
+          const nextPageElement = document.querySelector(
+            config.nextPageSelector
+          );
+          const pageIndicator = document.querySelector(
+            config.pageIndicatorSelector
+          );
+
+          if (
+            !targetDiv ||
+            !prevPageElement ||
+            !nextPageElement ||
+            !pageIndicator
+          )
+            return;
+          targetDiv.addEventListener(
+            "wheel",
+            createWheelHandler(prevPageElement, nextPageElement, pageIndicator),
+            { passive: false }
+          );
+        });
+      }
+      if (settings.home.useWheelPageTurner) wheelPageTurner();
     }
 
     // 课程主页
