@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ucloud-Evolved
 // @namespace    http://tampermonkey.net/
-// @version      0.31
+// @version      0.32
 // @description  主页作业显示所属课程，使用Office 365预览课件，增加通知显示数量，通知按时间排序，去除悬浮窗，解除复制限制，课件自动下载，批量下载，资源页展示全部下载按钮，更好的页面标题
 // @author       Quarix
 // @updateURL    https://github.com/uarix/ucloud-Evolved/raw/refs/heads/main/ucloud-Evolved.user.js
@@ -21,11 +21,80 @@
 // @grant        GM_registerMenuCommand
 // @grant        GM_xmlhttpRequest
 // @grant        GM_openInTab
+// @grant        unsafeWindow
 // @run-at       document-start
 // @license      MIT
 // ==/UserScript==
 
-(function () {
+(function() {
+  'use strict';
+  /**
+   * 接收一个模块对象，找到目标模块，并修改其源代码。
+   * @param {object} modules - Webpack的模块对象，形如 { moduleId: moduleFunction, ... }
+   */
+  function patchModules(modules) {
+      if (!GM_getValue("notification_showMoreNotification", true)) {
+        return;
+      }
+      for (const moduleId in modules) {
+          const originalModule = modules[moduleId];
+          const moduleString = originalModule.toString();
+
+          if (moduleString.includes('name:"setNotice"') && moduleString.includes("size:10")) {
+              console.log(`[Hook Script] Target module found in patcher! ID: ${moduleId}. Rewriting source...`);
+
+              const modifiedModuleSource = moduleString.replace(
+                  /size\s*:\s*10/g, 
+                  "size: 1000"    
+              );
+              const hookedModule = eval(`(${modifiedModuleSource})`);
+              modules[moduleId] = hookedModule;
+
+              console.log('[Hook Script] Module source code has been patched in memory successfully!');
+
+              break;
+          }
+      }
+  }
+
+  let webpackJsonp_ = undefined;
+  Object.defineProperty(unsafeWindow, 'webpackJsonp', {
+      configurable: true,
+      enumerable: true,
+
+      get() {
+          return webpackJsonp_;
+      },
+
+      set(newValue) {
+          console.log('[Hook Script] `webpackJsonp` assignment captured.');
+          if (Array.isArray(newValue)) {
+              newValue.forEach(chunk => patchModules(chunk[1]));
+              const originalPush = newValue.push;
+              newValue.push = function(...args) {
+                  const chunk = args[0];
+                  patchModules(chunk[1]);
+                  return originalPush.apply(this, args);
+              };
+              webpackJsonp_ = newValue;
+          }
+          else if (typeof newValue === 'function') {
+              webpackJsonp_ = function(chunkIds, modules, ...rest) {
+                  patchModules(modules);
+                  return newValue.call(this, chunkIds, modules, ...rest);
+              };
+          }
+          else {
+              webpackJsonp_ = newValue;
+          }
+      }
+  });
+
+})();
+
+
+(
+  function () {
   if (location.href.startsWith("https://ucloud.bupt.edu.cn/office/")) {
     if (
       GM_getValue("preview_autoSwitchOffice", true) ||
@@ -692,12 +761,13 @@
   ) {
     // hook XMR
     if (GM_getValue("notification_showMoreNotification", true)) {
+      // if (
+      //   typeof url === "string" &&
+      //   url.includes("/ykt-basics/api/inform/news/list")
+      // ) {
+      //   url = url.replace(/size=\d+/, "size=1000");
+      // } else 
       if (
-        typeof url === "string" &&
-        url.includes("/ykt-basics/api/inform/news/list")
-      ) {
-        url = url.replace(/size=\d+/, "size=1000");
-      } else if (
         typeof url === "string" &&
         url.includes("/ykt-site/site/list/student/history")
       ) {
