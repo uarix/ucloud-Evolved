@@ -1,0 +1,27 @@
+{
+  "name": "ucloud-evolved-plus",
+  "version": "0.82.0",
+  "description": "Tampermonkey script build for UCloud Enhancer",
+  "type": "module",
+  "scripts": {
+    "build": "rollup -c",
+    "watch": "rollup -c -w"
+  },
+  "keywords": [
+    "tampermonkey",
+    "userscript",
+    "ucloud"
+  ],
+  "author": "Quarix, Xyea",
+  "license": "MIT",
+  "devDependencies": {
+    "@rollup/plugin-commonjs": "^28.0.8",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-typescript": "^12.1.4",
+    "@types/tampermonkey": "^5.0.5",
+    "rollup": "^4.52.4",
+    "rollup-plugin-userscript-metablock": "^0.4.3",
+    "tslib": "^2.8.1",
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,0 +1,29 @@
+// ==UserScript==
+// @name         ucloud-Evolved-Plus
+// @namespace    http://tampermonkey.net/
+// @version      0.82
+// @description  主页作业显示所属课程，统一展示本学期所有课程，使用Office 365预览课件，增加通知显示数量，通知按时间排序，去除悬浮窗，解除复制限制，课件自动下载，批量下载，资源页展示全部下载按钮，更好的页面标题
+// @author       Quarix, Xyea
+// @match        https://ucloud.bupt.edu.cn/
+// @match        https://ucloud.bupt.edu.cn/uclass/*
+// @match        https://ucloud.bupt.edu.cn/office/*
+// @icon         https://ucloud.bupt.edu.cn/favicon.ico
+// @require      https://cdn.jsdelivr.net/npm/nprogress@0.2.0/nprogress.min.js
+// @resource     NPROGRESS_CSS https://cdn.jsdelivr.net/npm/nprogress@0.2.0/nprogress.min.css
+// @resource     JSZIP https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js#sha256=acc7e41455a80765b5fd9c7ee1b8078a6d160bbbca455aeae854de65c947d59e
+// @grant        GM_getResourceText
+// @grant        GM_addStyle
+// @grant        GM_setValue
+// @grant        GM_getValue
+// @grant        GM_addValueChangeListener
+// @grant        GM_registerMenuCommand
+// @grant        GM_download
+// @grant        GM_openInTab
+// @grant        GM_xmlhttpRequest
+// @connect      apiucloud.bupt.edu.cn
+// @connect      fileucloud.bupt.edu.cn
+// @run-at       document-start
+// @license      MIT
+// @downloadURL  https://update.greasyfork.org/scripts/532489/ucloud-Evolved.user.js
+// @updateURL    https://update.greasyfork.org/scripts/532489/ucloud-Evolved.meta.js
+// ==/UserScript==
