@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ucloud-Evolved
 // @namespace    http://tampermonkey.net/
-// @version      0.32
+// @version      0.33
 // @description  主页作业显示所属课程，使用Office 365预览课件，增加通知显示数量，通知按时间排序，去除悬浮窗，解除复制限制，课件自动下载，批量下载，资源页展示全部下载按钮，更好的页面标题
 // @author       Quarix
 // @updateURL    https://github.com/uarix/ucloud-Evolved/raw/refs/heads/main/ucloud-Evolved.user.js
@@ -11,8 +11,8 @@
 // @match        https://ucloud.bupt.edu.cn/uclass/*
 // @match        https://ucloud.bupt.edu.cn/office/*
 // @icon         https://ucloud.bupt.edu.cn/favicon.ico
-// @require      https://lf9-cdn-tos.bytecdntp.com/cdn/expire-1-M/nprogress/0.2.0/nprogress.min.js#sha256-XWzSUJ+FIQ38dqC06/48sNRwU1Qh3/afjmJ080SneA8=
-// @resource     NPROGRESS_CSS https://lf3-cdn-tos.bytecdntp.com/cdn/expire-1-M/nprogress/0.2.0/nprogress.min.css#sha256-pMhcV6/TBDtqH9E9PWKgS+P32PVguLG8IipkPyqMtfY=
+// @require      https://cdnjs.cloudflare.com/ajax/libs/nprogress/0.2.0/nprogress.min.js#sha512-bUg5gaqBVaXIJNuebamJ6uex//mjxPk8kljQTdM1SwkNrQD7pjS+PerntUSD+QRWPNJ0tq54/x4zRV8bLrLhZg==
+// @resource     NPROGRESS_CSS https://cdnjs.cloudflare.com/ajax/libs/nprogress/0.2.0/nprogress.min.css#sha512-42kB9yDlYiCEfx2xVwq0q7hT4uf26FUgSIZBK8uiaEnTdShXjwr8Ip1V4xGJMg3mHkUt9nNuTDxunHF0/EgxLQ==
 // @connect      github.com
 // @grant        GM_getResourceText
 // @grant        GM_addStyle
@@ -26,75 +26,181 @@
 // @license      MIT
 // ==/UserScript==
 
-(function() {
-  'use strict';
+(function () {
+  "use strict";
   /**
-   * 接收一个模块对象，找到目标模块，并修改其源代码。
-   * @param {object} modules - Webpack的模块对象，形如 { moduleId: moduleFunction, ... }
+   * @param {object} modules - webpack 模块对象
    */
   function patchModules(modules) {
-      if (!GM_getValue("notification_showMoreNotification", true)) {
-        return;
-      }
-      for (const moduleId in modules) {
-          const originalModule = modules[moduleId];
-          const moduleString = originalModule.toString();
-
-          if (moduleString.includes('name:"setNotice"') && moduleString.includes("size:10")) {
-              console.log(`[Hook Script] Target module found in patcher! ID: ${moduleId}. Rewriting source...`);
-
-              const modifiedModuleSource = moduleString.replace(
-                  /size\s*:\s*10/g, 
-                  "size: 1000"    
-              );
-              const hookedModule = eval(`(${modifiedModuleSource})`);
-              modules[moduleId] = hookedModule;
-
-              console.log('[Hook Script] Module source code has been patched in memory successfully!');
-
-              break;
-          }
-      }
-  }
-
-  let webpackJsonp_ = undefined;
-  Object.defineProperty(unsafeWindow, 'webpackJsonp', {
-      configurable: true,
-      enumerable: true,
-
-      get() {
-          return webpackJsonp_;
+    const patchJobs = [
+      {
+        name: "setNotice",
+        identifiers: ['name:"setNotice"', "size:10"],
+        patched: !GM_getValue("notification_showMoreNotification", true),
+        replacements: [[/size\s*:\s*10/g, "size: 1000"]],
       },
+      {
+        name: "studentHomepage",
+        identifiers: ['name:"studentHomepage"', "tapUndone", "tapSiteItem"],
+        patched: !GM_getValue("home_openInNewTab", true),
+        replacements: [
+          // 规则来自 'tapUndone'
+          [
+            /window\.location\.href\s*=\s*("course\.html#\/teacher\/forum\/topicDetail_fullpage\?tid="\s*\+\s*e\.activityId)/g,
+            'window.open($1, "_blank")',
+          ],
+          [
+            /window\.location\.href\s*=\s*("course\.html#\/student\/assignmentDetails_fullpage\?activeTabName="\s*\+\s*t\s*\+\s*"&assignmentId="\s*\+\s*e\.activityId\s*\+\s*"&assignmentType="\s*\+\s*e\.assignmentType\s*\+\s*"&assignmentTitle="\s*\+\s*e\.activityName\s*\+\s*"&evaluationStatus="\s*\+\s*e\.evaluationStatus\s*\+\s*"&studentGroupId="\s*\+\s*e\.studentGroupId\s*\+\s*"&isOpenEvaluation="\s*\+\s*e\.isOpenEvaluation)/g,
+            'window.open($1, "_blank")',
+          ],
+          [
+            /window\.location\.href\s*=\s*("course\.html#\/answer\?id="\s*\+\s*e\.activityId)/g,
+            'window.open($1, "_blank")',
+          ],
+          // 规则来自 'tapSiteItem'
+          [
+            /window\.location\.href\s*=\s*(["']course\.html#\/student\/courseHomePage\?ind=1["'])/g,
+            'window.open($1, "_blank")',
+          ],
+          [
+            /window\.location\.href\s*=\s*(["']course\.html#\/courseCenterDetail_fullpage["'])/g,
+            'window.open($1, "_blank")',
+          ],
+        ],
+      },
+      // ,{
+      //     name: 'anotherModule',
+      //     identifiers: ['...'],
+      //     patched: false,
+      //     replacements: [ ... ]
+      // } // <-- 新 Hook 示例
+    ];
 
-      set(newValue) {
-          console.log('[Hook Script] `webpackJsonp` assignment captured.');
-          if (Array.isArray(newValue)) {
-              newValue.forEach(chunk => patchModules(chunk[1]));
-              const originalPush = newValue.push;
-              newValue.push = function(...args) {
-                  const chunk = args[0];
-                  patchModules(chunk[1]);
-                  return originalPush.apply(this, args);
-              };
-              webpackJsonp_ = newValue;
-          }
-          else if (typeof newValue === 'function') {
-              webpackJsonp_ = function(chunkIds, modules, ...rest) {
-                  patchModules(modules);
-                  return newValue.call(this, chunkIds, modules, ...rest);
-              };
-          }
-          else {
-              webpackJsonp_ = newValue;
-          }
+    /**
+     * 尝试对模块字符串应用一个补丁任务
+     * @param {string} moduleString - 原始模块代码
+     * @param {object} job - patchJobs 数组中的一个补丁任务
+     * @returns {{modifiedSource: string, isTarget: boolean}}
+     */
+    function applyPatchJob(moduleString, job) {
+      const isTarget = job.identifiers.every((id) => moduleString.includes(id));
+      if (!isTarget) {
+        return { modifiedSource: moduleString, isTarget: false };
       }
-  });
+      const modifiedSource = job.replacements.reduce(
+        (currentSource, [regex, replacement]) => {
+          return currentSource.replace(regex, replacement);
+        },
+        moduleString // reduce 的初始值
+      );
 
+      return { modifiedSource, isTarget: true };
+    }
+
+    const totalPatchesNeeded = patchJobs.length;
+    let patchesApplied = 0;
+    console.log(
+      `[ucloud-Evolved] 开始 patching。需要寻找 ${totalPatchesNeeded} 个模块...`
+    );
+
+    for (const moduleId in modules) {
+      if (patchesApplied === totalPatchesNeeded) {
+        console.log("[ucloud-Evolved] 所有模块均已 patch。停止遍历。");
+        break;
+      }
+      const originalModule = modules[moduleId];
+      let currentModuleString = originalModule.toString();
+      let moduleHasBeenModified = false;
+
+      try {
+        for (const job of patchJobs) {
+          if (job.patched) {
+            continue;
+          }
+
+          const { modifiedSource, isTarget } = applyPatchJob(
+            currentModuleString,
+            job
+          );
+
+          if (isTarget) {
+            if (modifiedSource !== currentModuleString) {
+              console.log(
+                `[ucloud-Evolved] 目标 '${job.name}' (ID: ${moduleId}) 匹配。准备应用 patch...`
+              );
+
+              currentModuleString = modifiedSource;
+              moduleHasBeenModified = true;
+
+              job.patched = true;
+              patchesApplied++;
+            } else {
+              console.warn(
+                `[ucloud-Evolved] 找到 '${job.name}' (ID: ${moduleId})，但正则表达式替换失败!`
+              );
+            }
+          }
+        }
+
+        if (moduleHasBeenModified) {
+          console.log(
+            `[ucloud-Evolved] (ID: ${moduleId}) 所有 patches 应用完毕。正在 eval...`
+          );
+          const hookedModule = eval(`(${currentModuleString})`);
+          modules[moduleId] = hookedModule; // 在内存中替换模块
+          console.log(`[Hook Script] (ID: ${moduleId}) patch 成功!`);
+        }
+      } catch (error) {
+        console.error(
+          `[ucloud-Evolved] Patch 模块 ${moduleId} 失败! 错误:`,
+          error
+        );
+        console.error(
+          "[ucloud-Evolved] 发生错误的模块代码 (可能已部分 patch):",
+          currentModuleString
+        );
+      }
+    }
+
+    if (patchesApplied < totalPatchesNeeded) {
+      console.log(
+        `[ucloud-Evolved] Patch 结束，但未进行所有patch。已patch ${patchesApplied}/${totalPatchesNeeded} 处。`
+      );
+    }
+  }
+  let webpackJsonp_ = undefined;
+  Object.defineProperty(unsafeWindow, "webpackJsonp", {
+    configurable: true,
+    enumerable: true,
+
+    get() {
+      return webpackJsonp_;
+    },
+
+    set(newValue) {
+      console.log("[Hook Script] `webpackJsonp` assignment captured.");
+      if (Array.isArray(newValue)) {
+        newValue.forEach((chunk) => patchModules(chunk[1]));
+        const originalPush = newValue.push;
+        newValue.push = function (...args) {
+          const chunk = args[0];
+          patchModules(chunk[1]);
+          return originalPush.apply(this, args);
+        };
+        webpackJsonp_ = newValue;
+      } else if (typeof newValue === "function") {
+        webpackJsonp_ = function (chunkIds, modules, ...rest) {
+          patchModules(modules);
+          return newValue.call(this, chunkIds, modules, ...rest);
+        };
+      } else {
+        webpackJsonp_ = newValue;
+      }
+    },
+  });
 })();
 
-
-(
-  function () {
+(function () {
   if (location.href.startsWith("https://ucloud.bupt.edu.cn/office/")) {
     if (
       GM_getValue("preview_autoSwitchOffice", true) ||
@@ -159,219 +265,219 @@
         if (window.stop) window.stop();
         function createModernImageViewer(imageUrl) {
           const style = document.createElement("style");
-          style.textContent = `  
-          .modern-image-viewer {  
-            position: fixed;  
-            top: 0;  
-            left: 0;  
-            width: 100%;  
-            height: 100%;  
-            background-color: rgba(0, 0, 0, 0.9);  
-            z-index: 9999;  
-            display: flex;  
-            flex-direction: column;  
-            color: white;  
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;  
-          }  
-          
-          .viewer-header {  
-            display: flex;  
-            justify-content: space-between;  
-            align-items: center;  
-            padding: 12px 20px;  
-            background-color: rgba(0, 0, 0, 0.7);  
-            z-index: 1;  
-          }  
-          
-          .viewer-title {  
-            font-size: 16px;  
-            font-weight: 500;  
-            white-space: nowrap;  
-            overflow: hidden;  
-            text-overflow: ellipsis;  
-            max-width: 70%;  
-          }  
-          
-          .viewer-controls {  
-            display: flex;  
-            gap: 15px;  
-          }  
-          
-          .viewer-button {  
-            background: none;  
-            border: none;  
-            color: white;  
-            cursor: pointer;  
-            font-size: 16px;  
-            padding: 5px;  
-            border-radius: 4px;  
-            display: flex;  
-            align-items: center;  
-            justify-content: center;  
-            transition: background-color 0.2s;  
-          }  
-          
-          .viewer-button:hover {  
-            background-color: rgba(255, 255, 255, 0.1);  
-          }  
-          
-          .viewer-content {  
-            flex: 1;  
-            display: flex;  
-            align-items: center;  
-            justify-content: center;  
-            position: relative;  
-            overflow: hidden;  
-          }  
-          
-          .viewer-image {  
-            max-width: 100%;  
-            max-height: 100%;  
-            object-fit: contain;  
-            transform-origin: center center;  
-            transition: transform 0.05s linear;  
-            cursor: grab;  
-          }  
-          
-          .viewer-image.dragging {  
-            cursor: grabbing;  
-            transition: none;  
-          }  
-          
-          .viewer-toolbar {  
-            display: flex;  
-            justify-content: center;  
-            align-items: center;  
-            padding: 12px;  
-            background-color: rgba(0, 0, 0, 0.7);  
-            gap: 20px;  
-          }  
-          
-          .zoom-level {  
-            font-size: 14px;  
-            min-width: 60px;  
-            text-align: center;  
-          }  
-          
-          .viewer-help {  
-            position: absolute;  
-            bottom: 80px;  
-            left: 50%;  
-            transform: translateX(-50%);  
-            background-color: rgba(0, 0, 0, 0.7);  
-            padding: 15px 20px;  
-            border-radius: 8px;  
-            max-width: 400px;  
-            font-size: 14px;  
-            display: none;  
-            z-index: 2;  
-          }  
-          
-          .viewer-help h3 {  
-            margin-top: 0;  
-            margin-bottom: 10px;  
-            font-size: 16px;  
-          }  
-          
-          .viewer-help ul {  
-            margin: 0;  
-            padding-left: 20px;  
-          }  
-          
-          .viewer-help li {  
-            margin-bottom: 5px;  
-          }  
-          
-          .keyboard-shortcut {  
-            display: inline-block;  
-            background-color: rgba(255, 255, 255, 0.1);  
-            padding: 2px 6px;  
-            border-radius: 3px;  
-            margin: 0 2px;  
-          }  
-          
-          @media (max-width: 768px) {  
-            .viewer-controls {  
-              gap: 10px;  
-            }  
-            
-            .viewer-button {  
-              font-size: 14px;  
-            }  
-            
-            .viewer-toolbar {  
-              padding: 10px;  
-              gap: 15px;  
-            }  
-          }  
+          style.textContent = `
+          .modern-image-viewer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+            z-index: 9999;
+            display: flex;
+            flex-direction: column;
+            color: white;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+          }
+
+          .viewer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 20px;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 1;
+          }
+
+          .viewer-title {
+            font-size: 16px;
+            font-weight: 500;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 70%;
+          }
+
+          .viewer-controls {
+            display: flex;
+            gap: 15px;
+          }
+
+          .viewer-button {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 5px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background-color 0.2s;
+          }
+
+          .viewer-button:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+          }
+
+          .viewer-content {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+          }
+
+          .viewer-image {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            transform-origin: center center;
+            transition: transform 0.05s linear;
+            cursor: grab;
+          }
+
+          .viewer-image.dragging {
+            cursor: grabbing;
+            transition: none;
+          }
+
+          .viewer-toolbar {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 12px;
+            background-color: rgba(0, 0, 0, 0.7);
+            gap: 20px;
+          }
+
+          .zoom-level {
+            font-size: 14px;
+            min-width: 60px;
+            text-align: center;
+          }
+
+          .viewer-help {
+            position: absolute;
+            bottom: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 15px 20px;
+            border-radius: 8px;
+            max-width: 400px;
+            font-size: 14px;
+            display: none;
+            z-index: 2;
+          }
+
+          .viewer-help h3 {
+            margin-top: 0;
+            margin-bottom: 10px;
+            font-size: 16px;
+          }
+
+          .viewer-help ul {
+            margin: 0;
+            padding-left: 20px;
+          }
+
+          .viewer-help li {
+            margin-bottom: 5px;
+          }
+
+          .keyboard-shortcut {
+            display: inline-block;
+            background-color: rgba(255, 255, 255, 0.1);
+            padding: 2px 6px;
+            border-radius: 3px;
+            margin: 0 2px;
+          }
+
+          @media (max-width: 768px) {
+            .viewer-controls {
+              gap: 10px;
+            }
+
+            .viewer-button {
+              font-size: 14px;
+            }
+
+            .viewer-toolbar {
+              padding: 10px;
+              gap: 15px;
+            }
+          }
         `;
           document.head.appendChild(style);
 
           // 创建预览器DOM结构
-          document.body.innerHTML = `  
-          <div class="modern-image-viewer">  
-            <div class="viewer-header">  
-              <div class="viewer-title">${getImageFileName(imageUrl)}</div>  
-              <div class="viewer-controls">  
-                <button class="viewer-button" id="help-btn" title="帮助">  
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">  
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-4h2v2h-2zm2.07-7.75l-.9.92c-.5.51-.86.97-1.04 1.69-.08.32-.13.68-.13 1.14h2c0-.47.08-.91.22-1.31.2-.58.53-.97.98-1.42l.9-.92c.35-.36.58-.82.58-1.35 0-1.1-.9-2-2-2s-2 .9-2 2h2c0-.55.45-1 1-1s1 .45 1 1c0 .28-.12.53-.31.72z"/>  
-                  </svg>  
-                </button>  
-                <button class="viewer-button" id="download-btn" title="下载">  
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">  
-                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>  
-                  </svg>  
-                </button>  
-              </div>  
-            </div>  
-            
-            <div class="viewer-content">  
-              <img id="viewer-img" class="viewer-image" src="${imageUrl}" alt="预览图片" draggable="false">  
-            </div>  
-            
-            <div class="viewer-toolbar">  
-              <button class="viewer-button" id="rotate-left" title="向左旋转">  
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">  
-                  <path d="M7.11 8.53L5.7 7.11C4.8 8.27 4.24 9.61 4.07 11h2.02c.14-.87.49-1.72 1.02-2.47zM6.09 13H4.07c.17 1.39.72 2.73 1.62 3.89l1.41-1.42c-.52-.75-.87-1.59-1.01-2.47zm1.01 5.32c1.16.9 2.51 1.44 3.9 1.61V17.9c-.87-.15-1.71-.49-2.46-1.03L7.1 18.32zM13 4.07V1L8.45 5.55 13 10V6.09c2.84.48 5 2.94 5 5.91s-2.16 5.43-5 5.91v2.02c3.95-.49 7-3.85 7-7.93s-3.05-7.44-7-7.93z"/>  
-                </svg>  
-              </button>  
-              <button class="viewer-button" id="zoom-out" title="缩小">  
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">  
-                  <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14zM7 9h5v1H7z"/>  
-                </svg>  
-              </button>  
-              <span class="zoom-level" id="zoom-level">100%</span>  
-              <button class="viewer-button" id="zoom-in" title="放大">  
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">  
-                  <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>  
-                  <path d="M12 10h-2v2H9v-2H7V9h2V7h1v2h2z"/>  
-                </svg>  
-              </button>  
-              <button class="viewer-button" id="zoom-reset" title="重置">  
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">  
-                  <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>  
-                </svg>  
-              </button>  
-              <button class="viewer-button" id="rotate-right" title="向右旋转">  
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">  
-                  <path d="M15.55 5.55L11 1v3.07C7.06 4.56 4 7.92 4 12s3.05 7.44 7 7.93v-2.02c-2.84-.48-5-2.94-5-5.91s2.16-5.43 5-5.91V10l4.55-4.45zM19.93 11c-.17-1.39-.72-2.73-1.62-3.89l-1.42 1.42c.54.75.88 1.6 1.02 2.47h2.02zM13 17.9v2.02c1.39-.17 2.74-.71 3.9-1.61l-1.44-1.44c-.75.54-1.59.89-2.46 1.03zm3.89-2.42l1.42 1.41c.9-1.16 1.45-2.5 1.62-3.89h-2.02c-.14.87-.48 1.72-1.02 2.48z"/>  
-                </svg>  
-              </button>  
-            </div>  
-            
-            <div class="viewer-help" id="help-panel">  
-              <h3>键盘快捷键</h3>  
-              <ul>  
-                <li><span class="keyboard-shortcut">+</span> 或 <span class="keyboard-shortcut">-</span> 放大/缩小</li>  
-                <li><span class="keyboard-shortcut">0</span> 重置缩放</li>  
-                <li><span class="keyboard-shortcut">←</span> <span class="keyboard-shortcut">→</span> 左右旋转</li>  
-                <li><span class="keyboard-shortcut">R</span> 重置所有变换</li>  
-                <li><span class="keyboard-shortcut">D</span> 下载图片</li>  
-                <li><span class="keyboard-shortcut">Esc</span> 关闭预览器</li>  
-              </ul>  
-            </div>  
-          </div>  
+          document.body.innerHTML = `
+          <div class="modern-image-viewer">
+            <div class="viewer-header">
+              <div class="viewer-title">${getImageFileName(imageUrl)}</div>
+              <div class="viewer-controls">
+                <button class="viewer-button" id="help-btn" title="帮助">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-4h2v2h-2zm2.07-7.75l-.9.92c-.5.51-.86.97-1.04 1.69-.08.32-.13.68-.13 1.14h2c0-.47.08-.91.22-1.31.2-.58.53-.97.98-1.42l.9-.92c.35-.36.58-.82.58-1.35 0-1.1-.9-2-2-2s-2 .9-2 2h2c0-.55.45-1 1-1s1 .45 1 1c0 .28-.12.53-.31.72z"/>
+                  </svg>
+                </button>
+                <button class="viewer-button" id="download-btn" title="下载">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="viewer-content">
+              <img id="viewer-img" class="viewer-image" src="${imageUrl}" alt="预览图片" draggable="false">
+            </div>
+
+            <div class="viewer-toolbar">
+              <button class="viewer-button" id="rotate-left" title="向左旋转">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M7.11 8.53L5.7 7.11C4.8 8.27 4.24 9.61 4.07 11h2.02c.14-.87.49-1.72 1.02-2.47zM6.09 13H4.07c.17 1.39.72 2.73 1.62 3.89l1.41-1.42c-.52-.75-.87-1.59-1.01-2.47zm1.01 5.32c1.16.9 2.51 1.44 3.9 1.61V17.9c-.87-.15-1.71-.49-2.46-1.03L7.1 18.32zM13 4.07V1L8.45 5.55 13 10V6.09c2.84.48 5 2.94 5 5.91s-2.16 5.43-5 5.91v2.02c3.95-.49 7-3.85 7-7.93s-3.05-7.44-7-7.93z"/>
+                </svg>
+              </button>
+              <button class="viewer-button" id="zoom-out" title="缩小">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14zM7 9h5v1H7z"/>
+                </svg>
+              </button>
+              <span class="zoom-level" id="zoom-level">100%</span>
+              <button class="viewer-button" id="zoom-in" title="放大">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/>
+                  <path d="M12 10h-2v2H9v-2H7V9h2V7h1v2h2z"/>
+                </svg>
+              </button>
+              <button class="viewer-button" id="zoom-reset" title="重置">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/>
+                </svg>
+              </button>
+              <button class="viewer-button" id="rotate-right" title="向右旋转">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M15.55 5.55L11 1v3.07C7.06 4.56 4 7.92 4 12s3.05 7.44 7 7.93v-2.02c-2.84-.48-5-2.94-5-5.91s2.16-5.43 5-5.91V10l4.55-4.45zM19.93 11c-.17-1.39-.72-2.73-1.62-3.89l-1.42 1.42c.54.75.88 1.6 1.02 2.47h2.02zM13 17.9v2.02c1.39-.17 2.74-.71 3.9-1.61l-1.44-1.44c-.75.54-1.59.89-2.46 1.03zm3.89-2.42l1.42 1.41c.9-1.16 1.45-2.5 1.62-3.89h-2.02c-.14.87-.48 1.72-1.02 2.48z"/>
+                </svg>
+              </button>
+            </div>
+
+            <div class="viewer-help" id="help-panel">
+              <h3>键盘快捷键</h3>
+              <ul>
+                <li><span class="keyboard-shortcut">+</span> 或 <span class="keyboard-shortcut">-</span> 放大/缩小</li>
+                <li><span class="keyboard-shortcut">0</span> 重置缩放</li>
+                <li><span class="keyboard-shortcut">←</span> <span class="keyboard-shortcut">→</span> 左右旋转</li>
+                <li><span class="keyboard-shortcut">R</span> 重置所有变换</li>
+                <li><span class="keyboard-shortcut">D</span> 下载图片</li>
+                <li><span class="keyboard-shortcut">Esc</span> 关闭预览器</li>
+              </ul>
+            </div>
+          </div>
         `;
 
           document.body.style.overflow = "hidden";
@@ -766,7 +872,7 @@
       //   url.includes("/ykt-basics/api/inform/news/list")
       // ) {
       //   url = url.replace(/size=\d+/, "size=1000");
-      // } else 
+      // } else
       if (
         typeof url === "string" &&
         url.includes("/ykt-site/site/list/student/history")
@@ -787,8 +893,8 @@
     home: {
       addHomeworkSource: GM_getValue("home_addHomeworkSource", true),
       useBiggerButton: GM_getValue("home_useBiggerButton", true),
-      makeClassClickable: GM_getValue("home_makeClassClickable", true),
       useWheelPageTurner: GM_getValue("home_useWheelPageTurner", true),
+      openInNewTab: GM_getValue("home_openInNewTab", true),
     },
     course: {
       addBatchDownload: GM_getValue("course_addBatchDownload", true),
@@ -938,25 +1044,25 @@
   }
   function showUpdateNotification(newVersion) {
     const notification = document.createElement("div");
-    notification.style.cssText = `  
-        position: fixed;  
-        bottom: 80px;  
-        right: 20px;  
-        background: #4a6cf7;  
-        color: white;  
-        padding: 15px 20px;  
-        border-radius: 8px;  
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);  
-        z-index: 10000;  
-        font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;  
-        max-width: 300px;  
+    notification.style.cssText = `
+        position: fixed;
+        bottom: 80px;
+        right: 20px;
+        background: #4a6cf7;
+        color: white;
+        padding: 15px 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 10000;
+        font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+        max-width: 300px;
     `;
 
-    notification.innerHTML = `  
-        <div style="font-weight: bold; margin-bottom: 5px;">发现新版本 v${newVersion}</div>  
-        <div style="font-size: 14px; margin-bottom: 10px;">当前版本 v${GM_info.script.version}</div>  
-        <button id="updateNow" style="background: white; color: #4a6cf7; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 10px;">立即更新</button>  
-        <button id="updateLater" style="background: transparent; color: white; border: 1px solid white; padding: 5px 10px; border-radius: 4px; cursor: pointer;">稍后提醒</button>  
+    notification.innerHTML = `
+        <div style="font-weight: bold; margin-bottom: 5px;">发现新版本 v${newVersion}</div>
+        <div style="font-size: 14px; margin-bottom: 10px;">当前版本 v${GM_info.script.version}</div>
+        <button id="updateNow" style="background: white; color: #4a6cf7; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-right: 10px;">立即更新</button>
+        <button id="updateLater" style="background: transparent; color: white; border: 1px solid white; padding: 5px 10px; border-radius: 4px; cursor: pointer;">稍后提醒</button>
     `;
 
     document.body.appendChild(notification);
@@ -1000,335 +1106,335 @@
   }
 
   function loadui() {
-    GM_addStyle(`  
-      #yzHelper-settings {  
-          position: fixed;  
-          bottom: 20px;  
-          right: 20px;  
-          background: #ffffff;  
-          box-shadow: 0 5px 25px rgba(0, 0, 0, 0.15);  
-          border-radius: 12px;  
-          z-index: 9999;  
-          width: 500px;  
-          height: 450px;  
-          font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;  
-          transition: all 0.3s ease;  
-          opacity: 0;  
-          transform: translateY(10px);  
-          color: #333;  
-          overflow: hidden;  
-          display: flex;  
-          flex-direction: column;  
-          display: none;  
-      }  
-      #yzHelper-settings.visible {  
-          opacity: 1;  
-          transform: translateY(0);  
-      }  
-      
-      #yzHelper-header {  
-          padding: 15px 20px;  
-          border-bottom: 1px solid #eee;  
-          background-color: #ecb000;  
-          color: white;  
-          font-weight: bold;  
-          font-size: 16px;  
-          display: flex;  
-          justify-content: space-between;  
-          align-items: center;  
-      }  
-      
-      #yzHelper-main {  
-          display: flex;  
-          flex: 1;  
-          overflow: hidden;  
-      }  
-      
-      #yzHelper-settings-sidebar {  
-          width: 140px;  
-          background: #f7f7f7;  
-          padding: 15px 0;  
-          border-right: 1px solid #eee;  
-          overflow-y: auto;  
-      }  
-      
-      #yzHelper-settings-sidebar .menu-item {  
-          padding: 12px 15px;  
-          cursor: pointer;  
-          transition: all 0.2s ease;  
-          font-size: 14px;  
-          color: #666;  
-          display: flex;  
-          align-items: center;  
-          gap: 8px;  
-      }  
-      
-      #yzHelper-settings-sidebar .menu-item:hover {  
-          background: #efefef;  
-          color: #333;  
-      }  
-      
-      #yzHelper-settings-sidebar .menu-item.active {  
-          background: #ffbe00;  
-          color: #fff;  
-          font-weight: 500;  
-      }  
-      
-      #yzHelper-settings-sidebar .emoji {  
-          font-size: 16px;  
-      }  
-      
-      #yzHelper-settings-content {  
-          flex: 1;  
-          padding: 20px;  
-          overflow-y: auto;  
-          position: relative;  
-          padding-bottom: 70px; /* Space for buttons */  
-      }  
-  
-      #yzHelper-settings-content .settings-section {  
-          display: none;  
-      }  
-      
-      #yzHelper-settings-content .settings-section.active {  
-          display: block;  
-      }  
-
-      #section-about .about-content {  
-          line-height: 1.6;  
-          font-size: 14px;  
-      }  
-      
-      #section-about h4 {  
-          margin: 16px 0 8px;  
-          font-size: 15px;  
-      }  
-      
-      #section-about ul {  
-          margin: 8px 0;  
-          padding-left: 20px;  
-      }  
-      
-      #section-about li {  
-          margin-bottom: 4px;  
-      }  
-      
-      #section-about .github-link {  
-          display: inline-flex;  
-          align-items: center;  
-          padding: 6px 12px;  
-          background: #f6f8fa;  
-          border: 1px solid rgba(27, 31, 36, 0.15);  
-          border-radius: 6px;  
-          color: #24292f;  
-          text-decoration: none;  
-          font-weight: 500;  
-          transition: background-color 0.2s;  
-      }  
-      
-      #section-about .github-link:hover {  
-          background-color: #f3f4f6;  
-      }  
-      
-      #section-about .github-icon {  
-          margin-right: 6px;  
-          fill: currentColor;  
-      }  
-      
-      
-      #section-about .feedback-note {  
-          margin-top: 14px;  
-          border-top: 1px solid #eaecef;  
-          padding-top: 14px;  
-          font-size: 13px;  
-          color: #57606a;  
-      }  
-      
-      #section-about code {  
-          background: rgba(175, 184, 193, 0.2);  
-          padding: 0.2em 0.4em;  
-          border-radius: 6px;  
-          font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;  
-          font-size: 85%;  
-      }  
-      
-      #yzHelper-settings h3 {  
-          margin-top: 0;  
-          margin-bottom: 15px;  
-          font-size: 18px;  
-          font-weight: 600;  
-          color: #2c3e50;  
-          padding-bottom: 10px;  
-          border-bottom: 1px solid #eee;  
-      }  
-      #yzHelper-settings .setting-item {  
-          margin-bottom: 16px;  
-      }  
-      #yzHelper-settings .setting-toggle {  
-          display: flex;  
-          align-items: center;  
-      }  
-      #yzHelper-settings .setting-item:last-of-type {  
-          margin-bottom: 20px;  
-      }  
-      #yzHelper-settings .switch {  
-          position: relative;  
-          display: inline-block;  
-          width: 44px;  
-          height: 24px;  
-          margin-right: 10px;  
-      }  
-      #yzHelper-settings .switch input {   
-          opacity: 0;  
-          width: 0;  
-          height: 0;  
-      }  
-      #yzHelper-settings .slider {  
-          position: absolute;  
-          cursor: pointer;  
-          top: 0;  
-          left: 0;  
-          right: 0;  
-          bottom: 0;  
-          background-color: #ccc;  
-          transition: .3s;  
-          border-radius: 24px;  
-      }  
-      #yzHelper-settings .slider:before {  
-          position: absolute;  
-          content: "";  
-          height: 18px;  
-          width: 18px;  
-          left: 3px;  
-          bottom: 3px;  
-          background-color: white;  
-          transition: .3s;  
-          border-radius: 50%;  
-      }  
-      #yzHelper-settings input:checked + .slider {  
-          background-color: #ffbe00;  
-      }  
-      #yzHelper-settings input:focus + .slider {  
-          box-shadow: 0 0 1px #ffbe00;  
-      }  
-      #yzHelper-settings input:checked + .slider:before {  
-          transform: translateX(20px);  
-      }  
-      #yzHelper-settings .setting-label {  
-          font-size: 14px;  
-          cursor: pointer;  
-      }  
-      
-      #yzHelper-settings .setting-description {  
-        display: block; /* 始终保持在DOM中 */  
-        margin-left: 54px;  
-        font-size: 12px;  
-        color: #666;  
-        background: #f9f9f9;  
-        border-left: 3px solid #ffbe00;  
-        border-radius: 0 4px 4px 0;  
-        max-height: 0;  
-        overflow: hidden;  
-        opacity: 0;  
-        transition: all 0.3s ease;  
-        padding: 0 12px;  
-      }  
-      
-      #yzHelper-settings .setting-description.visible {  
-        max-height: 100px;  
-        opacity: 1;  
-        margin-top: 8px;  
-        padding: 8px 12px;  
-      }  
-      
-      #yzHelper-settings .buttons {  
-          display: flex;  
-          justify-content: flex-end;  
-          gap: 10px;  
+    GM_addStyle(`
+      #yzHelper-settings {
           position: fixed;
-          bottom: 0px;  
-          right: 25px;  
-          background: white;  
-          padding: 10px 0;  
-          width: calc(100% - 180px);  
-          border-top: 1px solid #f5f5f5;  
-          box-sizing: border-box;  
-      }  
-      #yzHelper-settings button {  
-          background: #ffbe00;  
-          border: none;  
-          padding: 8px 16px;  
-          border-radius: 6px;  
-          cursor: pointer;  
-          font-weight: 500;  
-          color: #fff;  
-          transition: all 0.2s ease;  
-          outline: none;  
-          font-size: 14px;  
-      }  
-      #yzHelper-settings button:hover {  
-          background: #e9ad00;  
-      }  
-      #yzHelper-settings button.cancel {  
-          background: #f1f1f1;  
-          color: #666;  
-      }  
-      #yzHelper-settings button.cancel:hover {  
-          background: #e5e5e5;  
-      }  
-      #yzHelper-settings-toggle {  
-          position: fixed;  
-          bottom: 20px;  
-          right: 20px;  
-          background: #ffbe00;  
-          color: #fff;  
-          width: 50px;  
-          height: 50px;  
-          border-radius: 50%;  
-          display: flex;  
-          align-items: center;  
-          justify-content: center;  
-          font-size: 24px;  
-          cursor: pointer;  
-          z-index: 9998;  
-          box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);  
-          transition: all 0.3s ease;  
-      }  
-      #yzHelper-settings-toggle:hover {  
-          transform: rotate(30deg);  
-          box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);  
-      }  
-      #yzHelper-settings .setting-item.disabled .setting-toggle,  
-      #yzHelper-settings .setting-item .setting-toggle:has(input:disabled) {  
-          opacity: 0.7;  
+          bottom: 20px;
+          right: 20px;
+          background: #ffffff;
+          box-shadow: 0 5px 25px rgba(0, 0, 0, 0.15);
+          border-radius: 12px;
+          z-index: 9999;
+          width: 500px;
+          height: 450px;
+          font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+          transition: all 0.3s ease;
+          opacity: 0;
+          transform: translateY(10px);
+          color: #333;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+          display: none;
+      }
+      #yzHelper-settings.visible {
+          opacity: 1;
+          transform: translateY(0);
       }
 
-      #yzHelper-settings input:disabled + .slider {  
-          background-color: #ffbe00;  
-          opacity: 0.5;  
-          cursor: not-allowed; 
-      }  
+      #yzHelper-header {
+          padding: 15px 20px;
+          border-bottom: 1px solid #eee;
+          background-color: #ecb000;
+          color: white;
+          font-weight: bold;
+          font-size: 16px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+      }
 
-      #yzHelper-settings input:disabled + .slider:before {  
-          background-color: #f0f0f0;  
-      }  
+      #yzHelper-main {
+          display: flex;
+          flex: 1;
+          overflow: hidden;
+      }
 
-      #yzHelper-settings .setting-item:has(input:disabled) .setting-label:after {  
-          content: " 🔒";  
-          font-size: 12px;  
-      }  
+      #yzHelper-settings-sidebar {
+          width: 140px;
+          background: #f7f7f7;
+          padding: 15px 0;
+          border-right: 1px solid #eee;
+          overflow-y: auto;
+      }
 
-      #yzHelper-settings .setting-item:has(input:disabled) .setting-description {  
-          border-left-color: #ccc;  
-          font-style: italic;  
-      }  
-      #yzHelper-version {  
-          position: absolute;  
-          bottom: 15px;  
-          left: 20px;  
-          font-size: 12px;  
-          color: #999;  
-      }  
+      #yzHelper-settings-sidebar .menu-item {
+          padding: 12px 15px;
+          cursor: pointer;
+          transition: all 0.2s ease;
+          font-size: 14px;
+          color: #666;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+      }
+
+      #yzHelper-settings-sidebar .menu-item:hover {
+          background: #efefef;
+          color: #333;
+      }
+
+      #yzHelper-settings-sidebar .menu-item.active {
+          background: #ffbe00;
+          color: #fff;
+          font-weight: 500;
+      }
+
+      #yzHelper-settings-sidebar .emoji {
+          font-size: 16px;
+      }
+
+      #yzHelper-settings-content {
+          flex: 1;
+          padding: 20px;
+          overflow-y: auto;
+          position: relative;
+          padding-bottom: 70px; /* Space for buttons */
+      }
+
+      #yzHelper-settings-content .settings-section {
+          display: none;
+      }
+
+      #yzHelper-settings-content .settings-section.active {
+          display: block;
+      }
+
+      #section-about .about-content {
+          line-height: 1.6;
+          font-size: 14px;
+      }
+
+      #section-about h4 {
+          margin: 16px 0 8px;
+          font-size: 15px;
+      }
+
+      #section-about ul {
+          margin: 8px 0;
+          padding-left: 20px;
+      }
+
+      #section-about li {
+          margin-bottom: 4px;
+      }
+
+      #section-about .github-link {
+          display: inline-flex;
+          align-items: center;
+          padding: 6px 12px;
+          background: #f6f8fa;
+          border: 1px solid rgba(27, 31, 36, 0.15);
+          border-radius: 6px;
+          color: #24292f;
+          text-decoration: none;
+          font-weight: 500;
+          transition: background-color 0.2s;
+      }
+
+      #section-about .github-link:hover {
+          background-color: #f3f4f6;
+      }
+
+      #section-about .github-icon {
+          margin-right: 6px;
+          fill: currentColor;
+      }
+
+
+      #section-about .feedback-note {
+          margin-top: 14px;
+          border-top: 1px solid #eaecef;
+          padding-top: 14px;
+          font-size: 13px;
+          color: #57606a;
+      }
+
+      #section-about code {
+          background: rgba(175, 184, 193, 0.2);
+          padding: 0.2em 0.4em;
+          border-radius: 6px;
+          font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, Liberation Mono, monospace;
+          font-size: 85%;
+      }
+
+      #yzHelper-settings h3 {
+          margin-top: 0;
+          margin-bottom: 15px;
+          font-size: 18px;
+          font-weight: 600;
+          color: #2c3e50;
+          padding-bottom: 10px;
+          border-bottom: 1px solid #eee;
+      }
+      #yzHelper-settings .setting-item {
+          margin-bottom: 16px;
+      }
+      #yzHelper-settings .setting-toggle {
+          display: flex;
+          align-items: center;
+      }
+      #yzHelper-settings .setting-item:last-of-type {
+          margin-bottom: 20px;
+      }
+      #yzHelper-settings .switch {
+          position: relative;
+          display: inline-block;
+          width: 44px;
+          height: 24px;
+          margin-right: 10px;
+      }
+      #yzHelper-settings .switch input {
+          opacity: 0;
+          width: 0;
+          height: 0;
+      }
+      #yzHelper-settings .slider {
+          position: absolute;
+          cursor: pointer;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background-color: #ccc;
+          transition: .3s;
+          border-radius: 24px;
+      }
+      #yzHelper-settings .slider:before {
+          position: absolute;
+          content: "";
+          height: 18px;
+          width: 18px;
+          left: 3px;
+          bottom: 3px;
+          background-color: white;
+          transition: .3s;
+          border-radius: 50%;
+      }
+      #yzHelper-settings input:checked + .slider {
+          background-color: #ffbe00;
+      }
+      #yzHelper-settings input:focus + .slider {
+          box-shadow: 0 0 1px #ffbe00;
+      }
+      #yzHelper-settings input:checked + .slider:before {
+          transform: translateX(20px);
+      }
+      #yzHelper-settings .setting-label {
+          font-size: 14px;
+          cursor: pointer;
+      }
+
+      #yzHelper-settings .setting-description {
+        display: block; /* 始终保持在DOM中 */
+        margin-left: 54px;
+        font-size: 12px;
+        color: #666;
+        background: #f9f9f9;
+        border-left: 3px solid #ffbe00;
+        border-radius: 0 4px 4px 0;
+        max-height: 0;
+        overflow: hidden;
+        opacity: 0;
+        transition: all 0.3s ease;
+        padding: 0 12px;
+      }
+
+      #yzHelper-settings .setting-description.visible {
+        max-height: 100px;
+        opacity: 1;
+        margin-top: 8px;
+        padding: 8px 12px;
+      }
+
+      #yzHelper-settings .buttons {
+          display: flex;
+          justify-content: flex-end;
+          gap: 10px;
+          position: fixed;
+          bottom: 0px;
+          right: 25px;
+          background: white;
+          padding: 10px 0;
+          width: calc(100% - 180px);
+          border-top: 1px solid #f5f5f5;
+          box-sizing: border-box;
+      }
+      #yzHelper-settings button {
+          background: #ffbe00;
+          border: none;
+          padding: 8px 16px;
+          border-radius: 6px;
+          cursor: pointer;
+          font-weight: 500;
+          color: #fff;
+          transition: all 0.2s ease;
+          outline: none;
+          font-size: 14px;
+      }
+      #yzHelper-settings button:hover {
+          background: #e9ad00;
+      }
+      #yzHelper-settings button.cancel {
+          background: #f1f1f1;
+          color: #666;
+      }
+      #yzHelper-settings button.cancel:hover {
+          background: #e5e5e5;
+      }
+      #yzHelper-settings-toggle {
+          position: fixed;
+          bottom: 20px;
+          right: 20px;
+          background: #ffbe00;
+          color: #fff;
+          width: 50px;
+          height: 50px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 24px;
+          cursor: pointer;
+          z-index: 9998;
+          box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+          transition: all 0.3s ease;
+      }
+      #yzHelper-settings-toggle:hover {
+          transform: rotate(30deg);
+          box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+      }
+      #yzHelper-settings .setting-item.disabled .setting-toggle,
+      #yzHelper-settings .setting-item .setting-toggle:has(input:disabled) {
+          opacity: 0.7;
+      }
+
+      #yzHelper-settings input:disabled + .slider {
+          background-color: #ffbe00;
+          opacity: 0.5;
+          cursor: not-allowed;
+      }
+
+      #yzHelper-settings input:disabled + .slider:before {
+          background-color: #f0f0f0;
+      }
+
+      #yzHelper-settings .setting-item:has(input:disabled) .setting-label:after {
+          content: " 🔒";
+          font-size: 12px;
+      }
+
+      #yzHelper-settings .setting-item:has(input:disabled) .setting-description {
+          border-left-color: #ccc;
+          font-style: italic;
+      }
+      #yzHelper-version {
+          position: absolute;
+          bottom: 15px;
+          left: 20px;
+          font-size: 12px;
+          color: #999;
+      }
     `);
 
     // 设置面板
@@ -1343,418 +1449,418 @@
     const settingsPanel = document.createElement("div");
     settingsPanel.id = "yzHelper-settings";
 
-    const header = `  
-      <div id="yzHelper-header">  
-        <span>云邮教学空间助手</span>  
-        <span id="yzHelper-version">v${GM_info.script.version}</span>  
-      </div>  
+    const header = `
+      <div id="yzHelper-header">
+        <span>云邮教学空间助手</span>
+        <span id="yzHelper-version">v${GM_info.script.version}</span>
+      </div>
     `;
 
-    const mainContent = `  
-    <div id="yzHelper-main">  
-        <div id="yzHelper-settings-sidebar">  
-            <div class="menu-item active" data-section="home">  
-                <span class="emoji">👤</span>  
-                <span>个人主页</span>  
-            </div>   
-            <div class="menu-item" data-section="preview">  
-                <span class="emoji">🖼️</span>  
-                <span>课件预览</span>  
-            </div>  
-            <div class="menu-item" data-section="course">  
-                <span class="emoji">📚</span>  
-                <span>课程详情</span>  
-            </div>  
-            <div class="menu-item" data-section="homework">  
-                <span class="emoji">📝</span>  
-                <span>作业详情</span>  
-            </div>  
-            <div class="menu-item" data-section="notification">  
-                <span class="emoji">📢</span>  
-                <span>消息通知</span>  
-            </div>  
-            <div class="menu-item" data-section="system">  
-                <span class="emoji">⚙️</span>  
-                <span>系统设置</span>  
-            </div>  
-            <div class="menu-item" data-section="about">  
-                <span class="emoji">ℹ️</span>  
-                <span>关于助手</span>  
-            </div>  
-        </div>  
+    const mainContent = `
+    <div id="yzHelper-main">
+        <div id="yzHelper-settings-sidebar">
+            <div class="menu-item active" data-section="home">
+                <span class="emoji">👤</span>
+                <span>个人主页</span>
+            </div>
+            <div class="menu-item" data-section="preview">
+                <span class="emoji">🖼️</span>
+                <span>课件预览</span>
+            </div>
+            <div class="menu-item" data-section="course">
+                <span class="emoji">📚</span>
+                <span>课程详情</span>
+            </div>
+            <div class="menu-item" data-section="homework">
+                <span class="emoji">📝</span>
+                <span>作业详情</span>
+            </div>
+            <div class="menu-item" data-section="notification">
+                <span class="emoji">📢</span>
+                <span>消息通知</span>
+            </div>
+            <div class="menu-item" data-section="system">
+                <span class="emoji">⚙️</span>
+                <span>系统设置</span>
+            </div>
+            <div class="menu-item" data-section="about">
+                <span class="emoji">ℹ️</span>
+                <span>关于助手</span>
+            </div>
+        </div>
 
-        <div id="yzHelper-settings-content">   
-            <!-- 个人主页设置 -->  
-            <div class="settings-section active" id="section-home">  
-                <h3>👤 个人主页设置</h3>  
-                <div class="setting-item">  
-                    <div class="setting-toggle">  
-                      <label class="switch">  
+        <div id="yzHelper-settings-content">
+            <!-- 个人主页设置 -->
+            <div class="settings-section active" id="section-home">
+                <h3>👤 个人主页设置</h3>
+                <div class="setting-item">
+                    <div class="setting-toggle">
+                      <label class="switch">
                           <input type="checkbox" id="home_useBiggerButton" ${
                             settings.home.useBiggerButton ? "checked" : ""
-                          }>  
-                          <span class="slider"></span>  
-                      </label>  
-                      <span class="setting-label" data-for="description-home_useBiggerButton">加大翻页按钮尺寸</span>  
-                    </div>  
-                    <div class="setting-description" id="description-home_useBiggerButton">  
-                      增大页面翻页按钮的尺寸和点击区域，提升操作便捷性。  
-                    </div>  
-                </div>  
-                <div class="setting-item">  
-                    <div class="setting-toggle">  
-                      <label class="switch">  
+                          }>
+                          <span class="slider"></span>
+                      </label>
+                      <span class="setting-label" data-for="description-home_useBiggerButton">加大翻页按钮尺寸</span>
+                    </div>
+                    <div class="setting-description" id="description-home_useBiggerButton">
+                      增大页面翻页按钮的尺寸和点击区域，提升操作便捷性。
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <div class="setting-toggle">
+                      <label class="switch">
+                          <input type="checkbox" id="home_openInNewTab" ${
+                            settings.home.openInNewTab ? "checked" : ""
+                          }>
+                          <span class="slider"></span>
+                      </label>
+                      <span class="setting-label" data-for="description-home_openInNewTab">在新标签中打开详情页</span>
+                    </div>
+                    <div class="setting-description" id="description-home_openInNewTab">
+                      个人主页中的课程和作业详情链接将在新标签页中打开，方便多任务处理。
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <div class="setting-toggle">
+                      <label class="switch">
                           <input type="checkbox" id="home_addHomeworkSource" ${
                             settings.home.addHomeworkSource ? "checked" : ""
-                          }>  
-                          <span class="slider"></span>  
-                      </label>  
-                      <span class="setting-label" data-for="description-home_addHomeworkSource">显示作业来源</span>  
-                    </div>  
-                    <div class="setting-description" id="description-home_addHomeworkSource">  
-                      为作业添加来源，直观显示发布作业的课程。  
-                    </div>  
-                </div>  
-                <div class="setting-item">  
-                    <div class="setting-toggle">  
-                      <label class="switch">  
-                          <input type="checkbox" id="home_makeClassClickable" ${
-                            settings.home.makeClassClickable ? "checked" : ""
-                          }>  
-                          <span class="slider"></span>  
-                      </label>  
-                      <span class="setting-label" data-for="description-home_makeClassClickable">便捷跳转</span>  
-                    </div>  
-                    <div class="setting-description" id="description-home_makeClassClickable">  
-                    点击"我的课程"跳转课程页。  
-                    </div>  
-                </div>  
-                <div class="setting-item">  
-                    <div class="setting-toggle">  
-                      <label class="switch">  
+                          }>
+                          <span class="slider"></span>
+                      </label>
+                      <span class="setting-label" data-for="description-home_addHomeworkSource">显示作业来源</span>
+                    </div>
+                    <div class="setting-description" id="description-home_addHomeworkSource">
+                      为作业添加来源，直观显示发布作业的课程。
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <div class="setting-toggle">
+                      <label class="switch">
                           <input type="checkbox" id="home_useWheelPageTurner" ${
                             settings.home.useWheelPageTurner ? "checked" : ""
-                          }>  
-                          <span class="slider"></span>  
-                      </label>  
-                      <span class="setting-label" data-for="description-home_useWheelPageTurner">使用鼠标滚轮翻页</span>  
-                    </div>  
-                    <div class="setting-description" id="description-home_useWheelPageTurner">  
-                    可以使用鼠标滚轮来翻动个人主页的“本学期课程”和“待办”。  
-                    </div>  
-                </div>  
-            </div>  
+                          }>
+                          <span class="slider"></span>
+                      </label>
+                      <span class="setting-label" data-for="description-home_useWheelPageTurner">使用鼠标滚轮翻页</span>
+                    </div>
+                    <div class="setting-description" id="description-home_useWheelPageTurner">
+                    可以使用鼠标滚轮来翻动个人主页的“本学期课程”和“待办”。
+                    </div>
+                </div>
+            </div>
 
-            <!-- 课件预览设置 -->  
-            <div class="settings-section" id="section-preview">  
-                <h3>🖼️ 课件预览设置</h3>  
-                <div class="setting-item">  
-                    <div class="setting-toggle">  
-                      <label class="switch">  
+            <!-- 课件预览设置 -->
+            <div class="settings-section" id="section-preview">
+                <h3>🖼️ 课件预览设置</h3>
+                <div class="setting-item">
+                    <div class="setting-toggle">
+                      <label class="switch">
                           <input type="checkbox" id="preview_autoDownload" ${
                             settings.preview.autoDownload ? "checked" : ""
-                          }>  
-                          <span class="slider"></span>  
-                      </label>  
-                      <span class="setting-label" data-for="description-preview_autoDownload">预览课件时自动下载</span>  
-                    </div>  
-                    <div class="setting-description" id="description-preview_autoDownload">  
-                      当打开课件预览时，自动触发下载操作，方便存储课件到本地。  
-                    </div>  
-                </div>  
-                <div class="setting-item">  
-                    <div class="setting-toggle">  
-                      <label class="switch">  
+                          }>
+                          <span class="slider"></span>
+                      </label>
+                      <span class="setting-label" data-for="description-preview_autoDownload">预览课件时自动下载</span>
+                    </div>
+                    <div class="setting-description" id="description-preview_autoDownload">
+                      当打开课件预览时，自动触发下载操作，方便存储课件到本地。
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <div class="setting-toggle">
+                      <label class="switch">
                           <input type="checkbox" id="preview_autoSwitchOffice" ${
                             settings.preview.autoSwitchOffice ? "checked" : ""
-                          }>  
-                          <span class="slider"></span>  
-                      </label>  
-                      <span class="setting-label" data-for="description-preview_autoSwitchOffice">使用 Office365 预览 Office 文件</span>  
-                    </div>  
-                    <div class="setting-description" id="description-preview_autoSwitchOffice">  
-                      使用微软 Office365 在线服务预览 Office 文档，提供更好的浏览体验。  
-                    </div>  
-                </div>  
-                <div class="setting-item">  
-                    <div class="setting-toggle">  
-                      <label class="switch">  
+                          }>
+                          <span class="slider"></span>
+                      </label>
+                      <span class="setting-label" data-for="description-preview_autoSwitchOffice">使用 Office365 预览 Office 文件</span>
+                    </div>
+                    <div class="setting-description" id="description-preview_autoSwitchOffice">
+                      使用微软 Office365 在线服务预览 Office 文档，提供更好的浏览体验。
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <div class="setting-toggle">
+                      <label class="switch">
                           <input type="checkbox" id="preview_autoSwitchPdf" ${
                             settings.preview.autoSwitchPdf ? "checked" : ""
-                          }>  
-                          <span class="slider"></span>  
-                      </label>  
-                      <span class="setting-label" data-for="description-preview_autoSwitchPdf">使用 浏览器原生阅读器 预览 PDF 文件</span>  
-                    </div>  
-                    <div class="setting-description" id="description-preview_autoSwitchPdf">  
-                      使用系统（浏览器）原生的阅读器预览PDF文档，提供更好的浏览体验。移动端及部分平板可能不支持。 
-                    </div>  
-                </div>  
-                <div class="setting-item">  
-                    <div class="setting-toggle">  
-                      <label class="switch">  
+                          }>
+                          <span class="slider"></span>
+                      </label>
+                      <span class="setting-label" data-for="description-preview_autoSwitchPdf">使用 浏览器原生阅读器 预览 PDF 文件</span>
+                    </div>
+                    <div class="setting-description" id="description-preview_autoSwitchPdf">
+                      使用系统（浏览器）原生的阅读器预览PDF文档，提供更好的浏览体验。移动端及部分平板可能不支持。
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <div class="setting-toggle">
+                      <label class="switch">
                           <input type="checkbox" id="preview_autoSwitchImg" ${
                             settings.preview.autoSwitchImg ? "checked" : ""
-                          }>  
-                          <span class="slider"></span>  
-                      </label>  
-                      <span class="setting-label" data-for="description-preview_autoSwitchImg">使用 脚本内置的阅读器 预览 图片 文件</span>  
-                    </div>  
-                    <div class="setting-description" id="description-preview_autoSwitchImg">  
+                          }>
+                          <span class="slider"></span>
+                      </label>
+                      <span class="setting-label" data-for="description-preview_autoSwitchImg">使用 脚本内置的阅读器 预览 图片 文件</span>
+                    </div>
+                    <div class="setting-description" id="description-preview_autoSwitchImg">
                       使用脚本内置的阅读器预览图片文件，提供更好的浏览体验。
-                    </div>  
-                </div>  
-                <div class="setting-item">  
-                    <div class="setting-toggle">  
-                      <label class="switch">  
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <div class="setting-toggle">
+                      <label class="switch">
                           <input type="checkbox" id="preview_autoClosePopup" ${
                             settings.preview.autoClosePopup ? "checked" : ""
-                          }>  
-                          <span class="slider"></span>  
-                      </label>  
-                      <span class="setting-label" data-for="description-preview_autoClosePopup">自动关闭弹窗</span>  
-                    </div>  
-                    <div class="setting-description" id="description-preview_autoClosePopup">  
-                      自动关闭预览时出现的"您已经在学习"及同类弹窗。  
-                    </div>  
-                </div>  
-                <div class="setting-item">  
-                    <div class="setting-toggle">  
-                      <label class="switch">  
+                          }>
+                          <span class="slider"></span>
+                      </label>
+                      <span class="setting-label" data-for="description-preview_autoClosePopup">自动关闭弹窗</span>
+                    </div>
+                    <div class="setting-description" id="description-preview_autoClosePopup">
+                      自动关闭预览时出现的"您已经在学习"及同类弹窗。
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <div class="setting-toggle">
+                      <label class="switch">
                           <input type="checkbox" id="preview_hideTimer" ${
                             settings.preview.hideTimer ? "checked" : ""
-                          }>  
-                          <span class="slider"></span>  
-                      </label>  
-                      <span class="setting-label" data-for="description-preview_hideTimer">隐藏预览界面倒计时</span>  
-                    </div>  
-                    <div class="setting-description" id="description-preview_hideTimer">  
-                      隐藏预览界面中的倒计时提示，获得无干扰的阅读体验。  
-                    </div>  
-                </div>  
-            </div>  
-            <!-- 课程详情设置 -->  
-            <div class="settings-section" id="section-course">  
-                <h3>📚 课程详情设置</h3>  
-                <div class="setting-item">  
-                    <div class="setting-toggle">  
-                      <label class="switch">  
+                          }>
+                          <span class="slider"></span>
+                      </label>
+                      <span class="setting-label" data-for="description-preview_hideTimer">隐藏预览界面倒计时</span>
+                    </div>
+                    <div class="setting-description" id="description-preview_hideTimer">
+                      隐藏预览界面中的倒计时提示，获得无干扰的阅读体验。
+                    </div>
+                </div>
+            </div>
+            <!-- 课程详情设置 -->
+            <div class="settings-section" id="section-course">
+                <h3>📚 课程详情设置</h3>
+                <div class="setting-item">
+                    <div class="setting-toggle">
+                      <label class="switch">
                           <input type="checkbox" id="course_addBatchDownload" ${
                             settings.course.addBatchDownload ? "checked" : ""
-                          }>  
-                          <span class="slider"></span>  
-                      </label>  
-                      <span class="setting-label" data-for="description-course_addBatchDownload">增加批量下载按钮</span>  
-                    </div>  
-                    <div class="setting-description" id="description-course_addBatchDownload">  
-                      增加批量下载按钮，方便一键下载课程中的所有课件。  
-                    </div>  
-                </div>  
-                <div class="setting-item">  
-                    <div class="setting-toggle">  
-                      <label class="switch">  
+                          }>
+                          <span class="slider"></span>
+                      </label>
+                      <span class="setting-label" data-for="description-course_addBatchDownload">增加批量下载按钮</span>
+                    </div>
+                    <div class="setting-description" id="description-course_addBatchDownload">
+                      增加批量下载按钮，方便一键下载课程中的所有课件。
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <div class="setting-toggle">
+                      <label class="switch">
                           <input type="checkbox" id="course_showAllDownloadButoon" ${
                             settings.course.showAllDownloadButoon
                               ? "checked"
                               : ""
-                          }>  
-                          <span class="slider"></span>  
-                      </label>  
-                      <span class="setting-label" data-for="description-course_showAllDownloadButoon">显示所有下载按钮</span>  
-                    </div>  
-                    <div class="setting-description" id="description-course_showAllDownloadButoon">  
-                      使每个课件文件都有下载按钮，不允许下载的课件在启用后也可以下载。  
-                    </div>  
-                </div>  
-            </div>  
+                          }>
+                          <span class="slider"></span>
+                      </label>
+                      <span class="setting-label" data-for="description-course_showAllDownloadButoon">显示所有下载按钮</span>
+                    </div>
+                    <div class="setting-description" id="description-course_showAllDownloadButoon">
+                      使每个课件文件都有下载按钮，不允许下载的课件在启用后也可以下载。
+                    </div>
+                </div>
+            </div>
 
-            <!-- 作业详情设置 -->  
-            <div class="settings-section" id="section-homework">  
-                <h3>📝 作业详情设置</h3>  
-                <div class="setting-item">  
-                    <div class="setting-toggle">  
-                      <label class="switch">  
+            <!-- 作业详情设置 -->
+            <div class="settings-section" id="section-homework">
+                <h3>📝 作业详情设置</h3>
+                <div class="setting-item">
+                    <div class="setting-toggle">
+                      <label class="switch">
                           <input type="checkbox" id="homework_showHomeworkSource" ${
                             settings.homework.showHomeworkSource
                               ? "checked"
                               : ""
-                          }>  
-                          <span class="slider"></span>  
-                      </label>  
-                      <span class="setting-label" data-for="description-homework_showHomeworkSource">显示作业所属课程</span>  
-                    </div>  
-                    <div class="setting-description" id="description-homework_showHomeworkSource">  
-                      在作业详情页显示作业所属的课程名称，便于区分不同课程的作业。  
-                    </div>  
-                </div>  
-            </div>  
+                          }>
+                          <span class="slider"></span>
+                      </label>
+                      <span class="setting-label" data-for="description-homework_showHomeworkSource">显示作业所属课程</span>
+                    </div>
+                    <div class="setting-description" id="description-homework_showHomeworkSource">
+                      在作业详情页显示作业所属的课程名称，便于区分不同课程的作业。
+                    </div>
+                </div>
+            </div>
 
-            <!-- 消息通知设置 -->  
-            <div class="settings-section" id="section-notification">  
-                <h3>📢 消息通知设置</h3>  
-                <div class="setting-item">  
-                    <div class="setting-toggle">  
-                      <label class="switch">  
+            <!-- 消息通知设置 -->
+            <div class="settings-section" id="section-notification">
+                <h3>📢 消息通知设置</h3>
+                <div class="setting-item">
+                    <div class="setting-toggle">
+                      <label class="switch">
                           <input type="checkbox" id="notification_showMoreNotification" ${
                             settings.notification.showMoreNotification
                               ? "checked"
                               : ""
-                          }>  
-                          <span class="slider"></span>  
-                      </label>  
-                      <span class="setting-label" data-for="description-notification_showMoreNotification">显示更多的通知</span>  
-                    </div>  
-                    <div class="setting-description" id="description-notification_showMoreNotification">  
-                      在通知列表中显示更多的历史通知，不再受限于默认显示数量。  
-                    </div>  
-                </div>  
-                <div class="setting-item">  
-                    <div class="setting-toggle">  
-                      <label class="switch">  
+                          }>
+                          <span class="slider"></span>
+                      </label>
+                      <span class="setting-label" data-for="description-notification_showMoreNotification">显示更多的通知</span>
+                    </div>
+                    <div class="setting-description" id="description-notification_showMoreNotification">
+                      在通知列表中显示更多的历史通知，不再受限于默认显示数量。
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <div class="setting-toggle">
+                      <label class="switch">
                           <input type="checkbox" id="notification_sortNotificationsByTime" ${
                             settings.notification.sortNotificationsByTime
                               ? "checked"
                               : ""
-                          }>  
-                          <span class="slider"></span>  
-                      </label>  
-                      <span class="setting-label" data-for="description-notification_sortNotificationsByTime">通知按照时间排序</span>  
-                    </div>  
-                    <div class="setting-description" id="description-notification_sortNotificationsByTime">  
-                      将通知按照时间先后顺序排列，更容易找到最新或最早的通知。  
-                    </div>  
-                </div>  
-                <div class="setting-item">  
-                    <div class="setting-toggle">  
-                      <label class="switch">  
+                          }>
+                          <span class="slider"></span>
+                      </label>
+                      <span class="setting-label" data-for="description-notification_sortNotificationsByTime">通知按照时间排序</span>
+                    </div>
+                    <div class="setting-description" id="description-notification_sortNotificationsByTime">
+                      将通知按照时间先后顺序排列，更容易找到最新或最早的通知。
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <div class="setting-toggle">
+                      <label class="switch">
                           <input type="checkbox" id="notification_betterNotificationHighlight" ${
                             settings.notification.betterNotificationHighlight
                               ? "checked"
                               : ""
-                          }>  
-                          <span class="slider"></span>  
-                      </label>  
-                      <span class="setting-label" data-for="description-notification_betterNotificationHighlight">优化未读通知高亮</span>  
-                    </div>  
-                    <div class="setting-description" id="description-notification_betterNotificationHighlight">  
-                      增强未读通知的视觉提示，使未读消息更加醒目，不易遗漏重要信息。  
-                    </div>  
-                </div>  
-            </div>  
-            
-            <!-- 系统设置 -->  
-            <div class="settings-section" id="section-system">  
-                <h3>⚙️ 系统设置</h3>  
-                <div class="setting-item">  
-                    <div class="setting-toggle">  
-                      <label class="switch">  
-                          <input type="checkbox" id="system_fixTicketBug" checked disabled>  
-                          <span class="slider"></span>  
-                      </label>  
-                      <span class="setting-label" data-for="description-system_fixTicketBug">修复ticket跳转问题</span>  
-                    </div>  
-                    <div class="setting-description" id="description-system_fixTicketBug">  
-                      修复登录过期后，重新登录出现无法获取ticket提示的问题。  
-                    </div>  
-                </div>  
-                <div class="setting-item">  
-                    <div class="setting-toggle">  
-                      <label class="switch">  
+                          }>
+                          <span class="slider"></span>
+                      </label>
+                      <span class="setting-label" data-for="description-notification_betterNotificationHighlight">优化未读通知高亮</span>
+                    </div>
+                    <div class="setting-description" id="description-notification_betterNotificationHighlight">
+                      增强未读通知的视觉提示，使未读消息更加醒目，不易遗漏重要信息。
+                    </div>
+                </div>
+            </div>
+
+            <!-- 系统设置 -->
+            <div class="settings-section" id="section-system">
+                <h3>⚙️ 系统设置</h3>
+                <div class="setting-item">
+                    <div class="setting-toggle">
+                      <label class="switch">
+                          <input type="checkbox" id="system_fixTicketBug" checked disabled>
+                          <span class="slider"></span>
+                      </label>
+                      <span class="setting-label" data-for="description-system_fixTicketBug">修复ticket跳转问题</span>
+                    </div>
+                    <div class="setting-description" id="description-system_fixTicketBug">
+                      修复登录过期后，重新登录出现无法获取ticket提示的问题。
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <div class="setting-toggle">
+                      <label class="switch">
                           <input type="checkbox" id="system_betterTitle" ${
                             settings.system.betterTitle ? "checked" : ""
-                          }>  
-                          <span class="slider"></span>  
-                      </label>  
-                      <span class="setting-label" data-for="description-system_betterTitle">优化页面标题</span>  
-                    </div>  
-                    <div class="setting-description" id="description-system_betterTitle">  
-                      优化浏览器标签页的标题显示，更直观地反映当前页面内容。  
-                    </div>  
-                </div>  
-                <div class="setting-item">  
-                    <div class="setting-toggle">  
-                      <label class="switch">  
+                          }>
+                          <span class="slider"></span>
+                      </label>
+                      <span class="setting-label" data-for="description-system_betterTitle">优化页面标题</span>
+                    </div>
+                    <div class="setting-description" id="description-system_betterTitle">
+                      优化浏览器标签页的标题显示，更直观地反映当前页面内容。
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <div class="setting-toggle">
+                      <label class="switch">
                           <input type="checkbox" id="system_unlockCopy" ${
                             settings.system.unlockCopy ? "checked" : ""
-                          }>  
-                          <span class="slider"></span>  
-                      </label>  
-                      <span class="setting-label" data-for="description-system_unlockCopy">解除复制限制</span>  
-                    </div>  
-                    <div class="setting-description" id="description-system_unlockCopy">  
-                      解除全局的复制限制，方便摘录内容进行学习笔记。  
-                    </div>  
-                </div>  
-                <div class="setting-item">  
-                    <div class="setting-toggle">  
-                      <label class="switch">  
+                          }>
+                          <span class="slider"></span>
+                      </label>
+                      <span class="setting-label" data-for="description-system_unlockCopy">解除复制限制</span>
+                    </div>
+                    <div class="setting-description" id="description-system_unlockCopy">
+                      解除全局的复制限制，方便摘录内容进行学习笔记。
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <div class="setting-toggle">
+                      <label class="switch">
                           <input type="checkbox" id="system_autoUpdate" ${
                             settings.system.autoUpdate ? "checked" : ""
-                          }>  
-                          <span class="slider"></span>  
-                      </label>  
-                      <span class="setting-label" data-for="description-system_autoUpdate">内置更新检查</span>  
-                    </div>  
-                    <div class="setting-description" id="description-system_autoUpdate">  
-                      定期检查脚本更新，确保您始终使用最新版本的功能和修复。  
-                    </div>  
-                </div>  
-                <div class="setting-item">  
-                    <div class="setting-toggle">  
-                      <label class="switch">  
+                          }>
+                          <span class="slider"></span>
+                      </label>
+                      <span class="setting-label" data-for="description-system_autoUpdate">内置更新检查</span>
+                    </div>
+                    <div class="setting-description" id="description-system_autoUpdate">
+                      定期检查脚本更新，确保您始终使用最新版本的功能和修复。
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <div class="setting-toggle">
+                      <label class="switch">
                           <input type="checkbox" id="system_showConfigButton" ${
                             settings.system.showConfigButton ? "checked" : ""
-                          }>  
-                          <span class="slider"></span>  
-                      </label>  
-                      <span class="setting-label" data-for="description-system_showConfigButton">显示插件悬浮窗</span>  
-                    </div>  
-                    <div class="setting-description" id="description-system_showConfigButton">  
-                      在网页界面显示助手配置按钮，方便随时调整设置。  
-                    </div>  
-                </div>  
-            </div>  
-            
-            <!-- 关于助手 -->  
-            <div class="settings-section" id="section-about">  
-                <h3>ℹ️ 关于云邮教学空间助手</h3>  
-                <div class="about-content">  
-                    <p>云邮教学空间助手是一款专为云邮教学空间平台设计的浏览器增强脚本。</p>  
-                    
-                    <h4>🚀 主要功能</h4>  
-                    <ul>  
-                        <li>📍 个人主页优化 - 智能布局，提升交互体验</li>  
-                        <li>📄 课件预览增强 - 流畅浏览，轻松获取学习资源</li>  
-                        <li>📥 课程管理优化 - 批量下载，多样化下载选项</li>  
-                        <li>📋 作业管理助手 - 精准显示课程归属，提高管理效率</li>  
-                        <li>🔔 通知管理优化 - 智能整理，突出重点通知</li>  
-                        <li>🛠️ 系统功能增强 - 页面标题优化，解除复制限制等实用功能</li>  
-                    </ul>   
-                    
-                    <h4>🔗 相关链接</h4>  
-                    <p>  
-                        <a href="https://github.com/uarix/ucloud-Evolved/" target="_blank" class="github-link">  
-                            <svg class="github-icon" height="16" width="16" viewBox="0 0 16 16" aria-hidden="true">  
-                                <path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"></path>  
-                            </svg>  
-                            <span>GitHub 项目主页</span>  
-                        </a>  
-                    </p>  
-                    
-                    <p class="feedback-note">  
-                        如有问题或建议，请通过   
-                        <a href="https://github.com/uarix/ucloud-Evolved/issues" target="_blank">GitHub Issues</a>   
-                        提交反馈。  
-                    </p>  
-                </div>  
-            </div>  
-            
-            <div class="buttons">  
-                <button id="cancelSettings" class="cancel">取消</button>  
-                <button id="saveSettings">保存设置</button>  
-            </div>  
-        </div>  
-    </div>  
+                          }>
+                          <span class="slider"></span>
+                      </label>
+                      <span class="setting-label" data-for="description-system_showConfigButton">显示插件悬浮窗</span>
+                    </div>
+                    <div class="setting-description" id="description-system_showConfigButton">
+                      在网页界面显示助手配置按钮，方便随时调整设置。
+                    </div>
+                </div>
+            </div>
+
+            <!-- 关于助手 -->
+            <div class="settings-section" id="section-about">
+                <h3>ℹ️ 关于云邮教学空间助手</h3>
+                <div class="about-content">
+                    <p>云邮教学空间助手是一款专为云邮教学空间平台设计的浏览器增强脚本。</p>
+
+                    <h4>🚀 主要功能</h4>
+                    <ul>
+                        <li>📍 个人主页优化 - 智能布局，提升交互体验</li>
+                        <li>📄 课件预览增强 - 流畅浏览，轻松获取学习资源</li>
+                        <li>📥 课程管理优化 - 批量下载，多样化下载选项</li>
+                        <li>📋 作业管理助手 - 精准显示课程归属，提高管理效率</li>
+                        <li>🔔 通知管理优化 - 智能整理，突出重点通知</li>
+                        <li>🛠️ 系统功能增强 - 页面标题优化，解除复制限制等实用功能</li>
+                    </ul>
+
+                    <h4>🔗 相关链接</h4>
+                    <p>
+                        <a href="https://github.com/uarix/ucloud-Evolved/" target="_blank" class="github-link">
+                            <svg class="github-icon" height="16" width="16" viewBox="0 0 16 16" aria-hidden="true">
+                                <path d="M8 0c4.42 0 8 3.58 8 8a8.013 8.013 0 0 1-5.45 7.59c-.4.08-.55-.17-.55-.38 0-.27.01-1.13.01-2.2 0-.75-.25-1.23-.54-1.48 1.78-.2 3.65-.88 3.65-3.95 0-.88-.31-1.59-.82-2.15.08-.2.36-1.02-.08-2.12 0 0-.67-.22-2.2.82-.64-.18-1.32-.27-2-.27-.68 0-1.36.09-2 .27-1.53-1.03-2.2-.82-2.2-.82-.44 1.1-.16 1.92-.08 2.12-.51.56-.82 1.28-.82 2.15 0 3.06 1.86 3.75 3.64 3.95-.23.2-.44.55-.51 1.07-.46.21-1.61.55-2.33-.66-.15-.24-.6-.83-1.23-.82-.67.01-.27.38.01.53.34.19.73.9.82 1.13.16.45.68 1.31 2.69.94 0 .67.01 1.3.01 1.49 0 .21-.15.45-.55.38A7.995 7.995 0 0 1 0 8c0-4.42 3.58-8 8-8Z"></path>
+                            </svg>
+                            <span>GitHub 项目主页</span>
+                        </a>
+                    </p>
+
+                    <p class="feedback-note">
+                        如有问题或建议，请通过
+                        <a href="https://github.com/uarix/ucloud-Evolved/issues" target="_blank">GitHub Issues</a>
+                        提交反馈。
+                    </p>
+                </div>
+            </div>
+
+            <div class="buttons">
+                <button id="cancelSettings" class="cancel">取消</button>
+                <button id="saveSettings">保存设置</button>
+            </div>
+        </div>
+    </div>
     `;
 
     settingsPanel.innerHTML = header + mainContent;
@@ -1885,26 +1991,26 @@
   // 通知函数
   function showNotification(title, message) {
     const notification = document.createElement("div");
-    notification.style.cssText = `  
-          position: fixed;  
-          bottom: 80px;    
-          right: 20px;  
-          background: #4CAF50;  
-          color: white;  
-          padding: 15px 20px;  
-          border-radius: 8px;  
-          box-shadow: 0 4px 12px rgba(0,0,0,0.15);  
-          z-index: 10000;  
-          font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;  
-          max-width: 300px;  
-          opacity: 0;  
-          transform: translateY(-10px);  
-          transition: all 0.3s ease;  
+    notification.style.cssText = `
+          position: fixed;
+          bottom: 80px;
+          right: 20px;
+          background: #4CAF50;
+          color: white;
+          padding: 15px 20px;
+          border-radius: 8px;
+          box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+          z-index: 10000;
+          font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
+          max-width: 300px;
+          opacity: 0;
+          transform: translateY(-10px);
+          transition: all 0.3s ease;
       `;
 
-    notification.innerHTML = `  
-          <div style="font-weight: bold; margin-bottom: 5px;">${title}</div>  
-          <div style="font-size: 14px;">${message}</div>  
+    notification.innerHTML = `
+          <div style="font-weight: bold; margin-bottom: 5px;">${title}</div>
+          <div style="font-size: 14px;">${message}</div>
       `;
 
     document.body.appendChild(notification);
@@ -2355,40 +2461,40 @@
   // 启用文本选择 修改按钮尺寸
   function addFunctionalCSS() {
     GM_addStyle(`
-    .teacher-home-page .home-left-container .in-progress-section .in-progress-body .in-progress-item .activity-box .activity-title {  
+    .teacher-home-page .home-left-container .in-progress-section .in-progress-body .in-progress-item .activity-box .activity-title {
       height: auto !important;
-    }  
+    }
     #layout-container > div.main-content > div.router-container > div > div.my-course-page {
-      max-height: none !important; 
+      max-height: none !important;
     }
     `);
     if (settings.notification.betterNotificationHighlight) {
       GM_addStyle(`
-      .notification-with-dot {  
-        background-color: #fff8f8 !important;  
-        border-left: 5px solid #f56c6c !important;  
-        box-shadow: 0 2px 6px rgba(245, 108, 108, 0.2) !important;  
-        padding: 0 22px !important;  
-        margin-bottom: 8px !important;  
-        border-radius: 4px !important;  
-        transition: all 0.3s ease !important;  
-    }  
-    .notification-with-dot:hover {  
-        background-color: #fff0f0 !important;  
-        box-shadow: 0 4px 12px rgba(245, 108, 108, 0.3) !important;  
-        transform: translateY(-2px) !important;  
-    }  
+      .notification-with-dot {
+        background-color: #fff8f8 !important;
+        border-left: 5px solid #f56c6c !important;
+        box-shadow: 0 2px 6px rgba(245, 108, 108, 0.2) !important;
+        padding: 0 22px !important;
+        margin-bottom: 8px !important;
+        border-radius: 4px !important;
+        transition: all 0.3s ease !important;
+    }
+    .notification-with-dot:hover {
+        background-color: #fff0f0 !important;
+        box-shadow: 0 4px 12px rgba(245, 108, 108, 0.3) !important;
+        transform: translateY(-2px) !important;
+    }
     `);
     }
     if (settings.system.unlockCopy) {
-      GM_addStyle(`  
-        .el-checkbox, .el-checkbox-button__inner, .el-empty__image img, .el-radio,  
-        div, span, p, a, h1, h2, h3, h4, h5, h6, li, td, th {  
-          -webkit-user-select: auto !important;  
-          -moz-user-select: auto !important;  
-          -ms-user-select: auto !important;  
-          user-select: auto !important;  
-        }  
+      GM_addStyle(`
+        .el-checkbox, .el-checkbox-button__inner, .el-empty__image img, .el-radio,
+        div, span, p, a, h1, h2, h3, h4, h5, h6, li, td, th {
+          -webkit-user-select: auto !important;
+          -moz-user-select: auto !important;
+          -ms-user-select: auto !important;
+          user-select: auto !important;
+        }
         `);
       document.addEventListener(
         "copy",
@@ -2494,9 +2600,9 @@
       }
       if (settings.preview.hideTimer) {
         GM_addStyle(`
-        .preview-container .time {  
-            display: none !important;  
-        }  
+        .preview-container .time {
+            display: none !important;
+        }
       `);
       }
     }
@@ -2678,19 +2784,7 @@
         // 更新作业显示
         await updateAssignmentDisplay(list, page);
       }
-      if (settings.home.makeClassClickable) {
-        // 本学期课程点击事件
-        document.querySelectorAll('div[class="header-label"]').forEach((el) => {
-          if (el.textContent.includes("本学期课程")) {
-            el.style.cursor = "pointer";
-            el.addEventListener("click", (e) => {
-              e.preventDefault();
-              window.location.href =
-                "https://ucloud.bupt.edu.cn/uclass/index.html#/student/myCourse";
-            });
-          }
-        });
-      }
+
       function wheelPageTurner() {
         const pageConfigs = [
           {
@@ -2813,10 +2907,10 @@
               i.classList.add("by-icon-download");
               i.classList.add("btn-icon");
               i.classList.add("visible");
-              i.style.cssText = `  
-                display: inline-block !important;  
-                visibility: visible !important;  
-                cursor: pointer !important;  
+              i.style.cssText = `
+                display: inline-block !important;
+                visibility: visible !important;
+                cursor: pointer !important;
             `;
 
               // 获取data-v属性
@@ -2847,10 +2941,10 @@
             resources.length > 0 &&
             settings.course.addBatchDownload
           ) {
-            const downloadAllButton = `<div style="display: flex;flex-direction: row;justify-content: end;margin-right: 24px;margin-top: 20px;">  
-                      <button type="button" class="el-button submit-btn el-button--primary" id="downloadAllButton">  
-                      下载全部  
-                      </button>  
+            const downloadAllButton = `<div style="display: flex;flex-direction: row;justify-content: end;margin-right: 24px;margin-top: 20px;">
+                      <button type="button" class="el-button submit-btn el-button--primary" id="downloadAllButton">
+                      下载全部
+                      </button>
                       </div>`;
 
             const resourceList = $x(
