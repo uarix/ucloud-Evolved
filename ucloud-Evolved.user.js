@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ucloud-Evolved
 // @namespace    http://tampermonkey.net/
-// @version      0.33
+// @version      0.34
 // @description  主页作业显示所属课程，使用Office 365预览课件，增加通知显示数量，通知按时间排序，去除悬浮窗，解除复制限制，课件自动下载，批量下载，资源页展示全部下载按钮，更好的页面标题
 // @author       Quarix
 // @updateURL    https://github.com/uarix/ucloud-Evolved/raw/refs/heads/main/ucloud-Evolved.user.js
@@ -203,7 +203,7 @@
 (function () {
   if (location.href.startsWith("https://ucloud.bupt.edu.cn/office/")) {
     if (
-      GM_getValue("preview_autoSwitchOffice", true) ||
+      GM_getValue("preview_autoSwitchOffice", false) ||
       GM_getValue("preview_autoSwitchPdf", true) ||
       GM_getValue("preview_autoSwitchImg", true)
     ) {
@@ -227,7 +227,7 @@
         filename.endsWith(".ppt") ||
         filename.endsWith(".pptx")
       ) {
-        if (!GM_getValue("preview_autoSwitchOffice", true)) {
+        if (!GM_getValue("preview_autoSwitchOffice", false)) {
           return;
         }
         if (window.stop) window.stop();
@@ -897,8 +897,8 @@
       openInNewTab: GM_getValue("home_openInNewTab", true),
     },
     course: {
-      addBatchDownload: GM_getValue("course_addBatchDownload", true),
-      showAllDownloadButoon: GM_getValue("course_showAllDownloadButoon", false),
+      addBatchDownload: GM_getValue("course_addBatchDownload", false),
+      showAllDownloadButoon: GM_getValue("course_showAllDownloadButoon", true),
     },
     homework: {
       showHomeworkSource: GM_getValue("homework_showHomeworkSource", true),
@@ -954,22 +954,15 @@
     loadui();
 
     addFunctionalCSS();
-    main();
+    setTimeout(main, 100);
 
     if (settings.system.autoUpdate) {
       checkForUpdates();
     }
 
-    main();
-
-    // 监听URL哈希变化
-    let hash = location.hash;
-    setInterval(() => {
-      if (location.hash != hash) {
-        hash = location.hash;
-        main();
-      }
-    }, 100);
+    window.addEventListener("hashchange", () => {
+      setTimeout(main, 500);
+    });
   }
 
   // 注册菜单命令
