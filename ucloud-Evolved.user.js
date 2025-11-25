@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ucloud-Evolved
 // @namespace    http://tampermonkey.net/
-// @version      0.34
+// @version      0.35
 // @description  主页作业显示所属课程，使用Office 365预览课件，增加通知显示数量，通知按时间排序，去除悬浮窗，解除复制限制，课件自动下载，批量下载，资源页展示全部下载按钮，更好的页面标题
 // @author       Quarix
 // @match        https://ucloud.bupt.edu.cn/*
