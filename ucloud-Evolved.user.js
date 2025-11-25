@@ -930,6 +930,8 @@
       unlockCopy: GM_getValue("system_unlockCopy", true),
       autoUpdate: GM_getValue("system_autoUpdate", false),
       showConfigButton: GM_getValue("system_showConfigButton", true),
+      // 添加ticket修复开关的初始状态
+      fixTicketBug: GM_getValue("system_fixTicketBug", false)
     },
   };
 
@@ -980,6 +982,7 @@
         location.reload();
       }
     );
+    
     GM_registerMenuCommand("⚙️ 打开插件设置", () => {
       if (
         document
