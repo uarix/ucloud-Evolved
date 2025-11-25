@@ -931,7 +931,7 @@
       autoUpdate: GM_getValue("system_autoUpdate", false),
       showConfigButton: GM_getValue("system_showConfigButton", true),
       // 添加ticket修复开关的初始状态
-      fixTicketBug: GM_getValue("system_fixTicketBug", false)
+      fixTicketBug: GM_getValue("system_fixTicketBug", true)
     },
   };
 
