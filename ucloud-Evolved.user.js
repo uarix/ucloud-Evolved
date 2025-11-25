@@ -1747,7 +1747,7 @@
                 <div class="setting-item">
                     <div class="setting-toggle">
                       <label class="switch">
-                          <input type="checkbox" id="system_fixTicketBug" checked>
+                          <input type="checkbox" id="system_fixTicketBug" ${settings.system.fixTicketBug ? "checked" : ""}>
                           <span class="slider"></span>
                       </label>
                       <span class="setting-label" data-for="description-system_fixTicketBug">修复ticket跳转问题</span>
