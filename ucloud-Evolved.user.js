@@ -22,8 +22,8 @@
 // @grant        unsafeWindow
 // @run-at       document-start
 // @license      MIT
-// @downloadURL https://update.greasyfork.org/scripts/532489/ucloud-Evolved.user.js
-// @updateURL https://update.greasyfork.org/scripts/532489/ucloud-Evolved.meta.js
+// @updateURL    https://github.com/uarix/ucloud-Evolved/raw/refs/heads/main/ucloud-Evolved.user.js
+// @downloadURL  https://github.com/uarix/ucloud-Evolved/raw/refs/heads/main/ucloud-Evolved.user.js
 // ==/UserScript==
 
 (function () {
