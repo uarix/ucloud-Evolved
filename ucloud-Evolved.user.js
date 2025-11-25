@@ -2531,7 +2531,7 @@
     "use strict";
 
     // 获取开关的状态（是否开启）
-    const fixTicketEnabled = document.getElementById('system_fixTicketBug')?.checked;
+    const fixTicketEnabled = settings.system.fixTicketBug;
 
     // ticket跳转：仅当开关开启且存在ticket参数时执行
     if (fixTicketEnabled && new URLSearchParams(location.search).get("ticket")?.length) {
