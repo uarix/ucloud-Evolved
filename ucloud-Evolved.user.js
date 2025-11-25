@@ -4,8 +4,6 @@
 // @version      0.34
 // @description  主页作业显示所属课程，使用Office 365预览课件，增加通知显示数量，通知按时间排序，去除悬浮窗，解除复制限制，课件自动下载，批量下载，资源页展示全部下载按钮，更好的页面标题
 // @author       Quarix
-// @updateURL    https://github.com/uarix/ucloud-Evolved/raw/refs/heads/main/ucloud-Evolved.user.js
-// @downloadURL  https://github.com/uarix/ucloud-Evolved/raw/refs/heads/main/ucloud-Evolved.user.js
 // @match        https://ucloud.bupt.edu.cn/*
 // @match        https://ucloud.bupt.edu.cn/uclass/course.html*
 // @match        https://ucloud.bupt.edu.cn/uclass/*
@@ -24,6 +22,8 @@
 // @grant        unsafeWindow
 // @run-at       document-start
 // @license      MIT
+// @downloadURL https://update.greasyfork.org/scripts/532489/ucloud-Evolved.user.js
+// @updateURL https://update.greasyfork.org/scripts/532489/ucloud-Evolved.meta.js
 // ==/UserScript==
 
 (function () {
@@ -1747,7 +1747,7 @@
                 <div class="setting-item">
                     <div class="setting-toggle">
                       <label class="switch">
-                          <input type="checkbox" id="system_fixTicketBug" checked disabled>
+                          <input type="checkbox" id="system_fixTicketBug" checked>
                           <span class="slider"></span>
                       </label>
                       <span class="setting-label" data-for="description-system_fixTicketBug">修复ticket跳转问题</span>
@@ -2529,13 +2529,18 @@
   // 主函数
   async function main() {
     "use strict";
-    // ticket跳转
-    if (new URLSearchParams(location.search).get("ticket")?.length) {
+
+    // 获取开关的状态（是否开启）
+    const fixTicketEnabled = document.getElementById('system_fixTicketBug')?.checked;
+
+    // ticket跳转：仅当开关开启且存在ticket参数时执行
+    if (fixTicketEnabled && new URLSearchParams(location.search).get("ticket")?.length) {
       setTimeout(() => {
         location.href = "https://ucloud.bupt.edu.cn/uclass/#/student/homePage";
       }, 500);
       return;
     }
+
 
     // 课件预览页面
     if (
