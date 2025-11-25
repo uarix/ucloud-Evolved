@@ -2541,7 +2541,6 @@
       return;
     }
 
-
     // 课件预览页面
     if (
       location.href.startsWith(
