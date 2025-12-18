@@ -20,7 +20,7 @@
 **ucloud-Evolved** 是一款专为 Tampermonkey 插件打造的云邮教学空间优化脚本，专门为北京邮电大学云邮教学空间设计，能够优化学习体验、提高效率，让教学平台使用更加便捷。
 
 <p align="left">  
-  <a href="https://github.com/uarix/ucloud-Evolved/raw/refs/heads/main/ucloud-Evolved.user.js" target="_blank">  
+  <a href="https://scriptcat.org/zh-CN/script-show-page/4905" target="_blank">  
     <img src="https://img.shields.io/badge/-%E7%82%B9%E5%87%BB%E5%AE%89%E8%A3%85%20ucloud--Evolved-brightgreen?style=for-the-badge&logo=tampermonkey" alt="点击安装 ucloud-Evolved" />  
   </a>  
 </p>
@@ -72,10 +72,11 @@
 
 1. 安装浏览器扩展：[Tampermonkey](https://www.tampermonkey.net/)（或其他用户脚本管理器）
 2. 安装本脚本（以下任选一种方式）：
+   - [通过 脚本猫 ScriptCat 安装](https://scriptcat.org/zh-CN/script-show-page/4905)
    - [通过 Github 安装 ](https://github.com/uarix/ucloud-Evolved/raw/refs/heads/main/ucloud-Evolved.user.js)
    - [通过 GreasyFork 安装](https://greasyfork.org/zh-CN/scripts/532489-ucloud-evolved)
    - 复制源代码到脚本管理器中创建新脚本
-3. 访问云邮教学空间，自动启用增强功能
+4. 访问云邮教学空间，自动启用增强功能
 
 ## 🔧 使用说明
 
