@@ -2681,10 +2681,10 @@
               if (
                 filename.endsWith(".xls") ||
                 filename.endsWith(".xlsx") ||
-                filename.endsWith(".doc") ||
-                filename.endsWith(".docx") ||
-                filename.endsWith(".ppt") ||
-                filename.endsWith(".pptx")
+                url.endsWith(".doc") ||
+                url.endsWith(".docx") ||
+                url.endsWith(".ppt") ||
+                url.endsWith(".pptx")
               ) {
                 if (settings.preview.autoSwitchOffice) {
                   openTab(
