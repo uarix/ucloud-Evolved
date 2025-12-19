@@ -885,14 +885,11 @@
   };
 })();
 (function () {
-  // 等待页面DOM加载完成
   document.addEventListener("DOMContentLoaded", initializeExtension);
-
-  // 设置项配置 - 统一管理所有设置
   const settingsConfig = {
     home: {
       emoji: '👤',
-      title: '个人主页设置',
+      title: '个人主页',
       items: {
         useBiggerButton: {
           type: 'checkbox',
@@ -922,7 +919,7 @@
     },
     preview: {
       emoji: '🖼️',
-      title: '课件预览设置',
+      title: '课件预览',
       items: {
         autoDownload: {
           type: 'checkbox',
@@ -964,7 +961,7 @@
     },
     course: {
       emoji: '📚',
-      title: '课程详情设置',
+      title: '课程详情',
       items: {
         addBatchDownload: {
           type: 'checkbox',
@@ -982,7 +979,7 @@
     },
     homework: {
       emoji: '📝',
-      title: '作业详情设置',
+      title: '作业详情',
       items: {
         showHomeworkSource: {
           type: 'checkbox',
@@ -994,14 +991,13 @@
     },
     notification: {
       emoji: '📢',
-      title: '消息通知设置',
+      title: '消息通知',
       items: {
         showMoreNotification: {
           type: 'checkbox',
           label: '显示更多历史通知',
           description: '在通知列表中显示更多的历史通知，不再受限于默认显示数量。',
           defaultValue: true,
-          disabled: true
         },
         notificationPageSize: {
           type: 'number',
@@ -1017,7 +1013,6 @@
           label: '通知按时间排序',
           description: '将通知按照时间先后顺序排列，更容易找到最新或最早的通知。',
           defaultValue: true,
-          disabled: true
         },
         betterNotificationHighlight: {
           type: 'checkbox',
