@@ -1478,7 +1478,7 @@
         items: [
           {
             id: 'preview_autoDownload',
-            label: '预览时自动下载',
+            label: '预览课件时自动下载',
             description: '当打开课件预览时，自动触发下载操作，方便存储课件到本地。',
             checked: settings.preview.autoDownload
           },
