@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ucloud-Evolved
 // @namespace    http://tampermonkey.net/
-// @version      0.35
+// @version      0.36
 // @description  主页作业显示所属课程，使用Office 365预览课件，增加通知显示数量，通知按时间排序，去除悬浮窗，解除复制限制，课件自动下载，批量下载，资源页展示全部下载按钮，更好的页面标题
 // @author       Quarix
 // @match        https://ucloud.bupt.edu.cn/*
@@ -2685,13 +2685,20 @@
                 url.endsWith(".docx") ||
                 url.endsWith(".ppt") ||
                 url.endsWith(".pptx")
-              )
-                openTab(
-                  "https://view.officeapps.live.com/op/view.aspx?src=" +
-                    encodeURIComponent(url),
-                  { active: true, insert: true }
-                );
-              else if (onlinePreview !== null)
+              ) {
+                if (settings.preview.autoSwitchOffice) {
+                  openTab(
+                    "https://view.officeapps.live.com/op/view.aspx?src=" +
+                      encodeURIComponent(url),
+                    { active: true, insert: true }
+                  );
+                } else if (onlinePreview !== null) {
+                  openTab(onlinePreview + encodeURIComponent(url), {
+                    active: true,
+                    insert: true,
+                  });
+                }
+              } else if (onlinePreview !== null)
                 openTab(onlinePreview + encodeURIComponent(url), {
                   active: true,
                   insert: true,
