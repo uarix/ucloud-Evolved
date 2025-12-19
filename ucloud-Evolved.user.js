@@ -37,7 +37,7 @@
         name: "setNotice",
         identifiers: ['name:"setNotice"', "size:10"],
         patched: !GM_getValue("notification_showMoreNotification", true),
-        replacements: [[/size\s*:\s*10/g, "size: 1000"]],
+        replacements: [[/size\s*:\s*10/g, `size: ${GM_getValue("notification_notificationPageSize", 1000)}`]],
       },
       {
         name: "studentHomepage",
@@ -888,52 +888,195 @@
   // 等待页面DOM加载完成
   document.addEventListener("DOMContentLoaded", initializeExtension);
 
-  // 用户设置
-  const settings = {
+  // 设置项配置 - 统一管理所有设置
+  const settingsConfig = {
     home: {
-      addHomeworkSource: GM_getValue("home_addHomeworkSource", true),
-      useBiggerButton: GM_getValue("home_useBiggerButton", true),
-      useWheelPageTurner: GM_getValue("home_useWheelPageTurner", true),
-      openInNewTab: GM_getValue("home_openInNewTab", true),
-    },
-    course: {
-      addBatchDownload: GM_getValue("course_addBatchDownload", false),
-      showAllDownloadButoon: GM_getValue("course_showAllDownloadButoon", true),
-    },
-    homework: {
-      showHomeworkSource: GM_getValue("homework_showHomeworkSource", true),
-    },
-    notification: {
-      showMoreNotification: GM_getValue(
-        "notification_showMoreNotification",
-        true
-      ),
-      sortNotificationsByTime: GM_getValue(
-        "notification_sortNotificationsByTime",
-        true
-      ),
-      betterNotificationHighlight: GM_getValue(
-        "notification_betterNotificationHighlight",
-        true
-      ),
+      emoji: '👤',
+      title: '个人主页设置',
+      items: {
+        useBiggerButton: {
+          type: 'checkbox',
+          label: '加大翻页按钮尺寸',
+          description: '增大页面翻页按钮的尺寸和点击区域，提升操作便捷性。',
+          defaultValue: true
+        },
+        openInNewTab: {
+          type: 'checkbox',
+          label: '在新标签中打开详情页',
+          description: '个人主页中的课程和作业详情链接将在新标签页中打开，方便多任务处理。',
+          defaultValue: true
+        },
+        addHomeworkSource: {
+          type: 'checkbox',
+          label: '显示作业来源',
+          description: '为作业添加来源，直观显示发布作业的课程。',
+          defaultValue: true
+        },
+        useWheelPageTurner: {
+          type: 'checkbox',
+          label: '使用鼠标滚轮翻页',
+          description: '可以使用鼠标滚轮来翻动个人主页的"本学期课程"和"待办"。',
+          defaultValue: true
+        }
+      }
     },
     preview: {
-      autoDownload: GM_getValue("preview_autoDownload", false),
-      autoSwitchOffice: GM_getValue("preview_autoSwitchOffice", false),
-      autoSwitchPdf: GM_getValue("preview_autoSwitchPdf", true),
-      autoSwitchImg: GM_getValue("preview_autoSwitchImg", true),
-      autoClosePopup: GM_getValue("preview_autoClosePopup", true),
-      hideTimer: GM_getValue("preview_hideTimer", true),
+      emoji: '🖼️',
+      title: '课件预览设置',
+      items: {
+        autoDownload: {
+          type: 'checkbox',
+          label: '预览课件时自动下载',
+          description: '当打开课件预览时，自动触发下载操作，方便存储课件到本地。',
+          defaultValue: false
+        },
+        autoSwitchOffice: {
+          type: 'checkbox',
+          label: '使用 Office365 预览 Office 文件',
+          description: '使用微软 Office365 在线服务预览 Office 文档，提供更好的浏览体验。',
+          defaultValue: false
+        },
+        autoSwitchPdf: {
+          type: 'checkbox',
+          label: '使用浏览器原生阅读器预览 PDF 文件',
+          description: '使用系统（浏览器）原生的阅读器预览PDF文档，提供更好的浏览体验。移动端及部分平板可能不支持。',
+          defaultValue: true
+        },
+        autoSwitchImg: {
+          type: 'checkbox',
+          label: '使用内置阅读器预览图片文件',
+          description: '使用脚本内置的阅读器预览图片文件，提供更好的浏览体验。',
+          defaultValue: true
+        },
+        autoClosePopup: {
+          type: 'checkbox',
+          label: '自动关闭预览时的学习弹窗',
+          description: '自动关闭预览时出现的"您已经在学习"及同类弹窗。',
+          defaultValue: true
+        },
+        hideTimer: {
+          type: 'checkbox',
+          label: '隐藏预览界面的倒计时',
+          description: '隐藏课件预览页面的倒计时显示。',
+          defaultValue: true
+        }
+      }
+    },
+    course: {
+      emoji: '📚',
+      title: '课程详情设置',
+      items: {
+        addBatchDownload: {
+          type: 'checkbox',
+          label: '增加批量下载按钮',
+          description: '增加批量下载按钮，方便一键下载课程中的所有课件。',
+          defaultValue: false
+        },
+        showAllDownloadButoon: {
+          type: 'checkbox',
+          label: '显示所有下载选项',
+          description: '在资源页显示所有可用的下载按钮。',
+          defaultValue: true
+        }
+      }
+    },
+    homework: {
+      emoji: '📝',
+      title: '作业详情设置',
+      items: {
+        showHomeworkSource: {
+          type: 'checkbox',
+          label: '显示作业所属课程',
+          description: '在作业详情页显示作业所属的课程名称，便于区分不同课程的作业。',
+          defaultValue: true
+        }
+      }
+    },
+    notification: {
+      emoji: '📢',
+      title: '消息通知设置',
+      items: {
+        showMoreNotification: {
+          type: 'checkbox',
+          label: '显示更多历史通知',
+          description: '在通知列表中显示更多的历史通知，不再受限于默认显示数量。',
+          defaultValue: true,
+          disabled: true
+        },
+        notificationPageSize: {
+          type: 'number',
+          label: '单页显示通知数量',
+          description: '设置通知列表单页显示的通知条数（范围：10-2000）。',
+          defaultValue: 1000,
+          min: 10,
+          max: 2000,
+          enabledBy: 'showMoreNotification'
+        },
+        sortNotificationsByTime: {
+          type: 'checkbox',
+          label: '通知按时间排序',
+          description: '将通知按照时间先后顺序排列，更容易找到最新或最早的通知。',
+          defaultValue: true,
+          disabled: true
+        },
+        betterNotificationHighlight: {
+          type: 'checkbox',
+          label: '优化未读通知高亮',
+          description: '为未读通知添加更显眼的视觉效果，避免遗漏重要信息。',
+          defaultValue: true
+        }
+      }
     },
     system: {
-      betterTitle: GM_getValue("system_betterTitle", true),
-      unlockCopy: GM_getValue("system_unlockCopy", true),
-      autoUpdate: GM_getValue("system_autoUpdate", false),
-      showConfigButton: GM_getValue("system_showConfigButton", true),
-      // 添加ticket修复开关的初始状态
-      fixTicketBug: GM_getValue("system_fixTicketBug", true)
-    },
+      emoji: '⚙️',
+      title: '系统设置',
+      items: {
+        fixTicketBug: {
+          type: 'checkbox',
+          label: '修复 ticket 跳转问题',
+          description: '修复登录过期后，重新登录出现无法获取ticket提示的问题。',
+          defaultValue: true
+        },
+        betterTitle: {
+          type: 'checkbox',
+          label: '优化页面标题',
+          description: '优化浏览器标签页的标题显示，更直观地反映当前页面内容。',
+          defaultValue: true
+        },
+        unlockCopy: {
+          type: 'checkbox',
+          label: '解除复制限制',
+          description: '解除全局的复制限制，方便摘录内容进行学习笔记。',
+          defaultValue: true
+        },
+        autoUpdate: {
+          type: 'checkbox',
+          label: '启用自动更新检查',
+          description: '定期检查脚本更新，确保您始终使用最新版本的功能和修复。',
+          defaultValue: false
+        },
+        showConfigButton: {
+          type: 'checkbox',
+          label: '显示插件悬浮窗',
+          description: '在网页界面显示助手配置按钮，方便随时调整设置。',
+          defaultValue: true
+        }
+      }
+    }
   };
+
+  // 从配置自动生成settings对象
+  const settings = {};
+  Object.keys(settingsConfig).forEach(category => {
+    if (category === 'about') return; // 跳过关于页面
+    settings[category] = {};
+    const items = settingsConfig[category].items;
+    Object.keys(items).forEach(key => {
+      const item = items[key];
+      const settingId = `${category}_${key}`;
+      settings[category][key] = GM_getValue(settingId, item.defaultValue);
+    });
+  });
 
   // 辅助变量
   let jsp;
@@ -1442,224 +1585,91 @@
       document.body.appendChild(settingsToggle);
     }
 
-    // 设置项配置 - 统一管理所有设置
-    const settingsConfig = {
-      home: {
-        title: '👤 个人主页设置',
-        items: [
-          {
-            id: 'home_useBiggerButton',
-            label: '加大翻页按钮尺寸',
-            description: '增大页面翻页按钮的尺寸和点击区域，提升操作便捷性。',
-            checked: settings.home.useBiggerButton
-          },
-          {
-            id: 'home_openInNewTab',
-            label: '在新标签中打开详情页',
-            description: '个人主页中的课程和作业详情链接将在新标签页中打开，方便多任务处理。',
-            checked: settings.home.openInNewTab
-          },
-          {
-            id: 'home_addHomeworkSource',
-            label: '显示作业来源',
-            description: '为作业添加来源，直观显示发布作业的课程。',
-            checked: settings.home.addHomeworkSource
-          },
-          {
-            id: 'home_useWheelPageTurner',
-            label: '使用鼠标滚轮翻页',
-            description: '可以使用鼠标滚轮来翻动个人主页的"本学期课程"和"待办"。',
-            checked: settings.home.useWheelPageTurner
-          }
-        ]
-      },
-      preview: {
-        title: '🖼️ 课件预览设置',
-        items: [
-          {
-            id: 'preview_autoDownload',
-            label: '预览课件时自动下载',
-            description: '当打开课件预览时，自动触发下载操作，方便存储课件到本地。',
-            checked: settings.preview.autoDownload
-          },
-          {
-            id: 'preview_autoSwitchOffice',
-            label: '使用 Office365 预览 Office 文件',
-            description: '使用微软 Office365 在线服务预览 Office 文档，提供更好的浏览体验。',
-            checked: settings.preview.autoSwitchOffice
-          },
-          {
-            id: 'preview_autoSwitchPdf',
-            label: '使用浏览器原生阅读器预览 PDF 文件',
-            description: '使用系统（浏览器）原生的阅读器预览PDF文档，提供更好的浏览体验。移动端及部分平板可能不支持。',
-            checked: settings.preview.autoSwitchPdf
-          },
-          {
-            id: 'preview_autoSwitchImg',
-            label: '使用内置阅读器预览图片文件',
-            description: '使用脚本内置的阅读器预览图片文件，提供更好的浏览体验。',
-            checked: settings.preview.autoSwitchImg
-          },
-          {
-            id: 'preview_autoClosePopup',
-            label: '自动关闭预览时的学习弹窗',
-            description: '自动关闭预览时出现的"您已经在学习"及同类弹窗。',
-            checked: settings.preview.autoClosePopup
-          },
-          {
-            id: 'preview_hideTimer',
-            label: '隐藏预览界面的倒计时',
-            description: '隐藏课件预览页面的倒计时显示。',
-            checked: settings.preview.hideTimer
-          }
-        ]
-      },
-      course: {
-        title: '📚 课程详情设置',
-        items: [
-          {
-            id: 'course_addBatchDownload',
-            label: '增加批量下载按钮',
-            description: '增加批量下载按钮，方便一键下载课程中的所有课件。',
-            checked: settings.course.addBatchDownload
-          },
-          {
-            id: 'course_showAllDownloadButoon',
-            label: '显示所有下载选项',
-            description: '在资源页显示所有可用的下载按钮。',
-            checked: settings.course.showAllDownloadButoon
-          }
-        ]
-      },
-      homework: {
-        title: '📝 作业详情设置',
-        items: [
-          {
-            id: 'homework_showHomeworkSource',
-            label: '显示作业所属课程',
-            description: '在作业详情页显示作业所属的课程名称，便于区分不同课程的作业。',
-            checked: settings.homework.showHomeworkSource
-          }
-        ]
-      },
-      notification: {
-        title: '📢 消息通知设置',
-        items: [
-          {
-            id: 'notification_showMoreNotification',
-            label: '显示更多历史通知',
-            description: '在通知列表中显示更多的历史通知，不再受限于默认显示数量。',
-            checked: settings.notification.showMoreNotification,
-            disabled: true
-          },
-          {
-            id: 'notification_sortNotificationsByTime',
-            label: '通知按时间排序',
-            description: '将通知按照时间先后顺序排列，更容易找到最新或最早的通知。',
-            checked: settings.notification.sortNotificationsByTime,
-            disabled: true
-          },
-          {
-            id: 'notification_betterNotificationHighlight',
-            label: '优化未读通知高亮',
-            description: '为未读通知添加更显眼的视觉效果，避免遗漏重要信息。',
-            checked: settings.notification.betterNotificationHighlight
-          }
-        ]
-      },
-      system: {
-        title: '⚙️ 系统设置',
-        items: [
-          {
-            id: 'system_fixTicketBug',
-            label: '修复 ticket 跳转问题',
-            description: '修复登录过期后，重新登录出现无法获取ticket提示的问题。',
-            checked: settings.system.fixTicketBug
-          },
-          {
-            id: 'system_betterTitle',
-            label: '优化页面标题',
-            description: '优化浏览器标签页的标题显示，更直观地反映当前页面内容。',
-            checked: settings.system.betterTitle
-          },
-          {
-            id: 'system_unlockCopy',
-            label: '解除复制限制',
-            description: '解除全局的复制限制，方便摘录内容进行学习笔记。',
-            checked: settings.system.unlockCopy
-          },
-          {
-            id: 'system_autoUpdate',
-            label: '启用自动更新检查',
-            description: '定期检查脚本更新，确保您始终使用最新版本的功能和修复。',
-            checked: settings.system.autoUpdate
-          },
-          {
-            id: 'system_showConfigButton',
-            label: '显示插件悬浮窗',
-            description: '在网页界面显示助手配置按钮，方便随时调整设置。',
-            checked: settings.system.showConfigButton
-          }
-        ]
-      }
-    };
-
     // 生成单个设置项的HTML
-    function generateSettingItem(item) {
+    function generateSettingItem(category, key, item) {
+      const settingId = `${category}_${key}`;
+      const value = settings[category][key];
       const disabledAttr = item.disabled ? 'disabled' : '';
-      const checkedAttr = item.checked ? 'checked' : '';
       
-      return `
-        <div class="setting-item">
-          <div class="setting-toggle">
-            <label class="switch">
-              <input type="checkbox" id="${item.id}" ${checkedAttr} ${disabledAttr}>
-              <span class="slider"></span>
-            </label>
-            <span class="setting-label" data-for="description-${item.id}">${item.label}</span>
+      if (item.type === 'checkbox') {
+        const checkedAttr = value ? 'checked' : '';
+        return `
+          <div class="setting-item">
+            <div class="setting-toggle">
+              <label class="switch">
+                <input type="checkbox" id="${settingId}" ${checkedAttr} ${disabledAttr} data-type="checkbox">
+                <span class="slider"></span>
+              </label>
+              <span class="setting-label" data-for="description-${settingId}">${item.label}</span>
+            </div>
+            <div class="setting-description" id="description-${settingId}">
+              ${item.description}
+            </div>
           </div>
-          <div class="setting-description" id="description-${item.id}">
-            ${item.description}
+        `;
+      } else if (item.type === 'number') {
+        const enabledByCheckbox = item.enabledBy ? `${category}_${item.enabledBy}` : null;
+        const numberDisabled = enabledByCheckbox && !settings[category][item.enabledBy];
+        const numberDisabledAttr = numberDisabled || item.disabled ? 'disabled' : '';
+        const enabledByAttr = enabledByCheckbox ? `data-enabled-by="${enabledByCheckbox}"` : '';
+        
+        return `
+          <div class="setting-item">
+            <div class="setting-toggle">
+              <label class="setting-label" data-for="description-${settingId}">${item.label}</label>
+              <input type="number" 
+                id="${settingId}" 
+                value="${value}" 
+                min="${item.min || 0}" 
+                max="${item.max || 9999}" 
+                ${numberDisabledAttr} 
+                ${enabledByAttr}
+                data-type="number"
+                style="width: 80px; padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; margin-left: 10px;">
+            </div>
+            <div class="setting-description" id="description-${settingId}">
+              ${item.description}
+            </div>
           </div>
-        </div>
-      `;
+        `;
+      }
+      return '';
     }
 
     // 生成设置区块的HTML
-    function generateSettingsSection(sectionId, config, isActive = false) {
+    function generateSettingsSection(category, config, isActive = false) {
       const activeClass = isActive ? 'active' : '';
-      const itemsHTML = config.items.map(item => generateSettingItem(item)).join('');
+      const items = config.items;
+      const itemsHTML = Object.keys(items).map(key => 
+        generateSettingItem(category, key, items[key])
+      ).join('');
       
       return `
-        <div class="settings-section ${activeClass}" id="section-${sectionId}">
-          <h3>${config.title}</h3>
+        <div class="settings-section ${activeClass}" id="section-${category}">
+          <h3>${config.emoji} ${config.title}</h3>
           ${itemsHTML}
         </div>
       `;
     }
 
-    // 生成菜单项配置
-    const menuItems = [
-      { id: 'home', emoji: '👤', label: '个人主页' },
-      { id: 'preview', emoji: '🖼️', label: '课件预览' },
-      { id: 'course', emoji: '📚', label: '课程详情' },
-      { id: 'homework', emoji: '📝', label: '作业详情' },
-      { id: 'notification', emoji: '📢', label: '消息通知' },
-      { id: 'system', emoji: '⚙️', label: '系统设置' },
-      { id: 'about', emoji: 'ℹ️', label: '关于助手' }
-    ];
-
     // 生成侧边栏菜单HTML
     function generateSidebarMenu() {
-      return menuItems.map((item, index) => {
+      const categories = Object.keys(settingsConfig);
+      return categories.map((category, index) => {
+        const config = settingsConfig[category];
         const activeClass = index === 0 ? 'active' : '';
         return `
-          <div class="menu-item ${activeClass}" data-section="${item.id}">
-            <span class="emoji">${item.emoji}</span>
-            <span>${item.label}</span>
+          <div class="menu-item ${activeClass}" data-section="${category}">
+            <span class="emoji">${config.emoji}</span>
+            <span>${config.title.replace(/^[^\s]+\s/, '')}</span>
           </div>
         `;
-      }).join('');
+      }).join('') + `
+        <div class="menu-item" data-section="about">
+          <span class="emoji">ℹ️</span>
+          <span>关于助手</span>
+        </div>
+      `;
     }
 
     // 生成所有设置区块HTML
@@ -1667,8 +1677,9 @@
       let sectionsHTML = '';
       let isFirst = true;
       
-      for (const [sectionId, config] of Object.entries(settingsConfig)) {
-        sectionsHTML += generateSettingsSection(sectionId, config, isFirst);
+      const categories = Object.keys(settingsConfig);
+      for (const category of categories) {
+        sectionsHTML += generateSettingsSection(category, settingsConfig[category], isFirst);
         isFirst = false;
       }
       
@@ -1809,7 +1820,19 @@
       }, 300);
     });
 
+    // 为checkbox添加事件监听器以启用/禁用关联的number输入
+    document.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+      checkbox.addEventListener('change', function() {
+        const checkboxId = this.id;
+        // 查找所有依赖此checkbox的number输入
+        document.querySelectorAll(`input[type="number"][data-enabled-by="${checkboxId}"]`).forEach(numberInput => {
+          numberInput.disabled = !this.checked;
+        });
+      });
+    });
+
     document.getElementById("saveSettings").addEventListener("click", () => {
+      // 保存checkbox设置
       Array.from(
         document
           .querySelector("#yzHelper-settings-content")
@@ -1818,15 +1841,30 @@
         const checkboxId = checkbox.id;
         if (checkboxId.includes("_")) {
           const [category, settingName] = checkboxId.split("_");
-          if (settings[category] && settingName) {
+          if (settings[category] && settingName !== undefined) {
             settings[category][settingName] = checkbox.checked;
             GM_setValue(`${category}_${settingName}`, checkbox.checked);
           }
-        } else {
-          settings[checkboxId] = checkbox.checked;
-          GM_setValue(checkboxId, checkbox.checked);
         }
       });
+      
+      // 保存number输入设置
+      Array.from(
+        document
+          .querySelector("#yzHelper-settings-content")
+          .querySelectorAll('input[type="number"]:not(:disabled)')
+      ).forEach((numberInput) => {
+        const inputId = numberInput.id;
+        if (inputId.includes("_")) {
+          const [category, settingName] = inputId.split("_");
+          if (settings[category] && settingName !== undefined) {
+            const value = parseInt(numberInput.value, 10);
+            settings[category][settingName] = value;
+            GM_setValue(`${category}_${settingName}`, value);
+          }
+        }
+      });
+      
       settingsPanel.classList.remove("visible");
       setTimeout(() => {
         settingsPanel.style.display = "none";
