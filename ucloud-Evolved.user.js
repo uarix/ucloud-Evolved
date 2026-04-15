@@ -144,9 +144,9 @@
 
         if (moduleHasBeenModified) {
           console.log(
-            `[ucloud-Evolved] (ID: ${moduleId}) 所有 patches 应用完毕。正在 eval...`
+            `[ucloud-Evolved] (ID: ${moduleId}) 所有 patches 应用完毕。正在重新构造模块...`
           );
-          const hookedModule = eval(`(${currentModuleString})`);
+          const hookedModule = new Function(`return (${currentModuleString})`)();
           modules[moduleId] = hookedModule; // 在内存中替换模块
           console.log(`[Hook Script] (ID: ${moduleId}) patch 成功!`);
         }
