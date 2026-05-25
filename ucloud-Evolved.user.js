@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ucloud-Evolved
 // @namespace    http://tampermonkey.net/
-// @version      0.37
+// @version      0.38
 // @description  主页作业显示所属课程，使用Office 365预览课件，增加通知显示数量，通知按时间排序，去除悬浮窗，解除复制限制，课件自动下载，批量下载，资源页展示全部下载按钮，更好的页面标题
 // @author       Quarix
 // @match        https://ucloud.bupt.edu.cn/*
@@ -932,6 +932,12 @@
           label: '使用鼠标滚轮翻页',
           description: '可以使用鼠标滚轮来翻动个人主页的"本学期课程"和"待办"。',
           defaultValue: true
+        },
+        showOverdueBadge: {
+          type: 'checkbox',
+          label: '待办逾期提示',
+          description: '在已逾期的待办旁显示红色"已逾期"标签，3天内到期的显示橙色"XXh截止"标签。',
+          defaultValue: false
         }
       }
     },
@@ -1081,7 +1087,6 @@
   // 从配置自动生成settings对象
   const settings = {};
   Object.keys(settingsConfig).forEach(category => {
-    if (category === 'about') return; // 跳过关于页面
     settings[category] = {};
     const items = settingsConfig[category].items;
     Object.keys(items).forEach(key => {
@@ -1092,11 +1097,9 @@
   });
 
   // 辅助变量
-  let jsp;
   let sumBytes = 0,
     loadedBytes = 0,
     downloading = false;
-  let setClicked = false;
   let gpage = -1;
   let glist = null;
   let onlinePreview = null;
@@ -1970,7 +1973,6 @@
   async function downloadFile(url, filename) {
     console.log("Call download");
     downloading = true;
-    await jsp;
     NProgress.configure({ trickle: false, speed: 0 });
     try {
       const response = await fetch(url);
@@ -2288,6 +2290,25 @@
           nodes[i].children[1].children[0].style.color = "#0066cc";
         }
       }
+      if (settings.home.showOverdueBadge && tlist[i] && tlist[i].endTime) {
+        const existing = nodes[i].querySelector(".yz-overdue-badge");
+        if (existing) existing.remove();
+        const end = new Date(tlist[i].endTime.replace(" ", "T"));
+        const now = new Date();
+        const diffMs = end - now;
+        if (diffMs < 0) {
+          const badge = document.createElement("span");
+          badge.className = "yz-overdue-badge overdue";
+          badge.textContent = "已逾期";
+          nodes[i].querySelector(".activity-title").appendChild(badge);
+        } else if (diffMs < 3 * 24 * 60 * 60 * 1000) {
+          const hours = Math.ceil(diffMs / (60 * 60 * 1000));
+          const badge = document.createElement("span");
+          badge.className = "yz-overdue-badge soon";
+          badge.textContent = hours + "h截止";
+          nodes[i].querySelector(".activity-title").appendChild(badge);
+        }
+      }
     }
   }
 
@@ -2393,6 +2414,28 @@
       max-height: none !important;
     }
     `);
+    if (settings.home.showOverdueBadge) {
+      GM_addStyle(`
+      .yz-overdue-badge {
+        display: inline-block;
+        padding: 2px 8px;
+        border-radius: 10px;
+        font-size: 12px;
+        font-weight: 600;
+        margin-left: 8px;
+        vertical-align: middle;
+        line-height: 1.4;
+      }
+      .yz-overdue-badge.overdue {
+        background: #f56c6c;
+        color: #fff;
+      }
+      .yz-overdue-badge.soon {
+        background: #e6a23c;
+        color: #fff;
+      }
+      `);
+    }
     if (settings.notification.betterNotificationHighlight) {
       GM_addStyle(`
       .notification-with-dot {
@@ -2679,7 +2722,6 @@
         glist = list;
 
         const observer = new MutationObserver(async (mutations) => {
-          // 当前页码
           const pageElement = document.querySelector(
             "#layout-container > div.main-content > div.router-container > div > div.teacher-home-page > div.home-left-container.home-inline-block > div.in-progress-section.home-card > div.in-progress-header > div > div:nth-child(2) > div > div.banner-indicator.home-inline-block"
           );
@@ -2895,20 +2937,26 @@
                 async () => {
                   downloading = !downloading;
                   if (downloading) {
-                    document.getElementById("downloadAllButton").innerHTML =
-                      "取消下载";
-                    for (let file of resources) {
+                    const btn = document.getElementById("downloadAllButton");
+                    const totalCount = resources.length;
+                    let completedCount = 0;
+                    btn.innerHTML = "取消下载 (0/" + totalCount + ")";
+                    for (let index = 0; index < resources.length; index++) {
                       if (!downloading) return;
+                      const file = resources[index];
+                      const shortName = file.name.length > 20 ? file.name.substring(0, 17) + "..." : file.name;
+                      btn.innerHTML =
+                        "取消下载 " + shortName + " (" + (index + 1) + "/" + totalCount + ")";
                       await downloadFile(
                         await getPreviewURL(file.id),
                         file.name
                       );
+                      if (!downloading) return;
+                      completedCount++;
                     }
-                    // 下载完成后重置按钮
                     if (downloading) {
                       downloading = false;
-                      document.getElementById("downloadAllButton").innerHTML =
-                        "下载全部";
+                      btn.innerHTML = "下载全部";
                     }
                   } else {
                     document.getElementById("downloadAllButton").innerHTML =
