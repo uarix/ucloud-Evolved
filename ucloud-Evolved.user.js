@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         ucloud-Evolved
 // @namespace    http://tampermonkey.net/
-// @version      0.38
-// @description  主页作业显示所属课程，使用Office 365预览课件，增加通知显示数量，通知按时间排序，去除悬浮窗，解除复制限制，课件自动下载，批量下载，资源页展示全部下载按钮，更好的页面标题
+// @version      0.39
+// @description  主页作业显示所属课程，主页课程搜索与最近使用，使用Office 365预览课件，增加通知显示数量，通知按时间排序，去除悬浮窗，解除复制限制，课件自动下载，批量下载，资源页展示全部下载按钮，更好的页面标题
 // @author       Quarix
 // @match        https://ucloud.bupt.edu.cn/*
 // @match        https://ucloud.bupt.edu.cn/uclass/course.html*
@@ -938,6 +938,27 @@
           label: '待办逾期提示',
           description: '在已逾期的待办旁显示红色"已逾期"标签，3天内到期的显示橙色"XXh截止"标签。',
           defaultValue: false
+        },
+        courseSearchBox: {
+          type: 'checkbox',
+          label: '本学期课程搜索框',
+          description: '在个人主页的"本学期课程"区域增加搜索框，可按课程名、教师或院系快速搜索并打开课程。',
+          defaultValue: true
+        },
+        recentCourses: {
+          type: 'checkbox',
+          label: '最近使用课程',
+          description: '在"本学期课程"区域显示最近打开过的课程，方便快速再次进入。',
+          defaultValue: true
+        },
+        recentCoursesCount: {
+          type: 'number',
+          label: '最近使用显示数量',
+          description: '设置"最近使用"中最多显示的课程数量（范围：1-20）。',
+          defaultValue: 5,
+          min: 1,
+          max: 20,
+          enabledBy: 'recentCourses'
         }
       }
     },
@@ -1709,6 +1730,7 @@
             <h4>🚀 主要功能</h4>
             <ul>
               <li>📍 个人主页优化 - 智能布局，提升交互体验</li>
+              <li>🔍 课程搜索 - 快速搜索"本学期课程"并记录最近使用</li>
               <li>📄 课件预览增强 - 流畅浏览，轻松获取学习资源</li>
               <li>📥 课程管理优化 - 批量下载，多样化下载选项</li>
               <li>📋 作业管理助手 - 精准显示课程归属，提高管理效率</li>
@@ -2393,6 +2415,449 @@
     }
   }
 
+  // 首页"本学期课程"：搜索框与最近使用
+  let courseListCache = null;
+  let courseListPromise = null;
+  let courseListLoading = false;
+  let courseClickTrackerInstalled = false;
+  let recentCourseRenderers = [];
+
+  function getCookie(name) {
+    const target = name + "=";
+    for (const part of document.cookie.split("; ")) {
+      if (part.startsWith(target)) return part.slice(target.length);
+    }
+    return null;
+  }
+
+  function getRoleAliase() {
+    const raw = getCookie("user-role");
+    if (!raw) return "";
+    try {
+      return (JSON.parse(decodeURIComponent(raw)) || {}).roleAliase || "";
+    } catch (e) {
+      try {
+        return (JSON.parse(raw) || {}).roleAliase || "";
+      } catch (err) {
+        return "";
+      }
+    }
+  }
+
+  function mapSiteRecord(record) {
+    let teachers = record.primaryTeachers || "";
+    if (!teachers && Array.isArray(record.teachers)) {
+      teachers = record.teachers
+        .map((t) => t.realName || t.name || "")
+        .filter(Boolean)
+        .join(", ");
+    }
+    return {
+      id: record.id,
+      name: record.siteName || "",
+      teachers: teachers,
+      department: record.departmentName || "",
+      raw: record,
+    };
+  }
+
+  async function fetchCurrentSiteList() {
+    const [userid, token] = getToken();
+    if (!userid || !token) return [];
+    const roleAliase = getRoleAliase();
+    let path = "student/current";
+    let siteRoleCode = 2;
+    if (roleAliase === "JS004" || roleAliase === "JS006") {
+      path = "teacher/current";
+      siteRoleCode = roleAliase === "JS004" ? 1 : 3;
+    }
+    const res = await fetch(
+      "https://apiucloud.bupt.edu.cn/ykt-site/site/list/" +
+        path +
+        "?size=999999&current=1&userId=" +
+        userid +
+        "&siteRoleCode=" +
+        siteRoleCode,
+      {
+        headers: {
+          authorization: "Basic cG9ydGFsOnBvcnRhbF9zZWNyZXQ=",
+          "blade-auth": token,
+        },
+        method: "GET",
+      }
+    );
+    const json = await res.json();
+    return (json && json.data && json.data.records) || [];
+  }
+
+  async function getCourseList() {
+    if (courseListCache && courseListCache.length) return courseListCache;
+    if (!courseListPromise) {
+      courseListLoading = true;
+      courseListPromise = fetchCurrentSiteList()
+        .then((records) => records.map(mapSiteRecord))
+        .catch((e) => {
+          console.error("[ucloud-Evolved] 获取课程列表失败", e);
+          return [];
+        })
+        .then((list) => {
+          courseListCache = list;
+          courseListPromise = null;
+          courseListLoading = false;
+          return list;
+        });
+    }
+    return courseListPromise;
+  }
+
+  function recentCoursesKey() {
+    const uid = getCookie("iClass-uuid") || getCookie("uuid") || "default";
+    return "home_recentCourses_" + uid;
+  }
+
+  function getRecentCourses() {
+    try {
+      const list = JSON.parse(GM_getValue(recentCoursesKey(), "[]"));
+      return Array.isArray(list) ? list : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function addRecentCourse(course) {
+    if (!course || !course.id) return;
+    const list = getRecentCourses().filter((x) => x.id !== course.id);
+    list.unshift({
+      id: course.id,
+      name: course.name || "",
+      teachers: course.teachers || "",
+      department: course.department || "",
+      time: Date.now(),
+    });
+    GM_setValue(recentCoursesKey(), JSON.stringify(list.slice(0, 30)));
+    recentCourseRenderers.forEach((render) => {
+      try {
+        render();
+      } catch (e) {
+        console.error("[ucloud-Evolved] 刷新最近使用失败", e);
+      }
+    });
+  }
+
+  function formatRecentTime(time) {
+    if (!time) return "";
+    const diff = Date.now() - time;
+    if (diff < 60 * 1000) return "刚刚";
+    if (diff < 60 * 60 * 1000) return Math.floor(diff / (60 * 1000)) + " 分钟前";
+    if (diff < 24 * 60 * 60 * 1000)
+      return Math.floor(diff / (60 * 60 * 1000)) + " 小时前";
+    if (diff < 30 * 24 * 60 * 60 * 1000)
+      return Math.floor(diff / (24 * 60 * 60 * 1000)) + " 天前";
+    const d = new Date(time);
+    return (
+      d.getFullYear() +
+      "-" +
+      String(d.getMonth() + 1).padStart(2, "0") +
+      "-" +
+      String(d.getDate()).padStart(2, "0")
+    );
+  }
+
+  function openCoursePage(course) {
+    if (!course || !course.id) return;
+    addRecentCourse(course);
+    const cached = (courseListCache || []).find((x) => x.id === course.id);
+    const raw = (cached && cached.raw) || course.raw || {};
+    const siteData = Object.assign({}, raw, {
+      id: course.id,
+      siteName: raw.siteName || course.name || "",
+    });
+    // 平台 Cookie 统一使用 iClass- 前缀（模块 4UAI 的 cookies 封装），
+    // 默认有效期 1 天，与平台 tapSiteItem 行为保持一致
+    document.cookie =
+      "iClass-site-id=" + course.id + "; path=/; max-age=86400";
+    try {
+      localStorage.setItem("site", JSON.stringify(siteData));
+    } catch (e) {
+      console.error("[ucloud-Evolved] 写入课程信息失败", e);
+    }
+    const roleAliase = getRoleAliase();
+    const view =
+      roleAliase === "JS004" || roleAliase === "JS006" ? "teacher" : "student";
+    const url =
+      "https://ucloud.bupt.edu.cn/uclass/course.html#/" +
+      view +
+      "/courseHomePage?ind=1";
+    if (settings.home.openInNewTab) {
+      window.open(url, "_blank");
+    } else {
+      window.location.href = url;
+    }
+  }
+
+  function findLessonSection() {
+    const sections = document.querySelectorAll(
+      "#layout-container .teacher-home-page .home-left-container .my-lesson-section"
+    );
+    let fallback = null;
+    for (const section of sections) {
+      const label = section.querySelector(".my-lesson-header .header-label");
+      const text = label ? label.textContent.trim() : "";
+      if (text === "本学期课程") return section;
+      if (
+        !fallback &&
+        (text === "我的主讲课程" || text === "我担任助教的课堂") &&
+        section.querySelector(".my-lesson-banner")
+      ) {
+        fallback = section;
+      }
+    }
+    return fallback;
+  }
+
+  async function waitForLessonSection(timeout = 15000) {
+    const start = Date.now();
+    while (Date.now() - start < timeout) {
+      const section = findLessonSection();
+      if (section) return section;
+      await sleep(200);
+    }
+    return null;
+  }
+
+  function installCourseClickTracker() {
+    if (courseClickTrackerInstalled) return;
+    courseClickTrackerInstalled = true;
+    document.addEventListener(
+      "click",
+      (e) => {
+        if (!e.target || !e.target.closest) return;
+        const item = e.target.closest(".my-lesson-section .my-lesson-item");
+        if (!item) return;
+        const nameEl = item.querySelector(".my-lesson-name");
+        const name = nameEl ? nameEl.textContent.trim() : "";
+        if (!name) return;
+        getCourseList().then((list) => {
+          const course = list.find((c) => c.name === name);
+          if (course) addRecentCourse(course);
+        });
+      },
+      true
+    );
+  }
+
+  async function setupLessonSearch() {
+    if (!settings.home.courseSearchBox && !settings.home.recentCourses) return;
+    const section = await waitForLessonSection();
+    if (!section || section.querySelector(".yz-lesson-toolbar")) return;
+    const header = section.querySelector(".my-lesson-header");
+    if (!header) return;
+
+    const toolbar = document.createElement("div");
+    toolbar.className = "yz-lesson-toolbar";
+
+    let input = null;
+    let results = null;
+    let activeIndex = -1;
+
+    const hideResults = () => {
+      if (!results) return;
+      results.hidden = true;
+      activeIndex = -1;
+    };
+
+    const renderResults = () => {
+      if (!results || !input) return;
+      const list = courseListCache || [];
+      const keyword = input.value.trim().toLowerCase();
+      results.innerHTML = "";
+      if (courseListLoading || !list.length) {
+        const tip = document.createElement("div");
+        tip.className = "yz-lesson-search-empty";
+        tip.textContent = courseListLoading ? "正在加载课程…" : "暂无课程数据";
+        results.appendChild(tip);
+        results.hidden = false;
+        activeIndex = -1;
+        return;
+      }
+      const scored = [];
+      for (const course of list) {
+        const name = course.name.toLowerCase();
+        let score;
+        if (!keyword) score = 0;
+        else if (name.startsWith(keyword)) score = 0;
+        else if (name.includes(keyword)) score = 1;
+        else if (course.teachers.toLowerCase().includes(keyword)) score = 2;
+        else if (course.department.toLowerCase().includes(keyword)) score = 3;
+        else continue;
+        scored.push({ course, score });
+      }
+      scored.sort((a, b) => a.score - b.score);
+      const matched = scored.slice(0, 50).map((x) => x.course);
+      if (!matched.length) {
+        const tip = document.createElement("div");
+        tip.className = "yz-lesson-search-empty";
+        tip.textContent = "未找到匹配的课程";
+        results.appendChild(tip);
+        results.hidden = false;
+        activeIndex = -1;
+        return;
+      }
+      matched.forEach((course) => {
+        const item = document.createElement("div");
+        item.className = "yz-lesson-search-item";
+        item.dataset.id = course.id;
+        const nameEl = document.createElement("div");
+        nameEl.className = "yz-lesson-search-name";
+        nameEl.textContent = course.name;
+        item.appendChild(nameEl);
+        const meta = [course.teachers, course.department]
+          .filter(Boolean)
+          .join(" · ");
+        if (meta) {
+          const metaEl = document.createElement("div");
+          metaEl.className = "yz-lesson-search-meta";
+          metaEl.textContent = meta;
+          item.appendChild(metaEl);
+        }
+        item.addEventListener("click", () => {
+          hideResults();
+          openCoursePage(course);
+        });
+        results.appendChild(item);
+      });
+      activeIndex = -1;
+      results.hidden = false;
+    };
+
+    if (settings.home.courseSearchBox) {
+      const searchWrap = document.createElement("div");
+      searchWrap.className = "yz-lesson-search";
+
+      input = document.createElement("input");
+      input.type = "text";
+      input.className = "yz-lesson-search-input";
+      input.placeholder = "搜索课程 / 教师 / 院系";
+      input.autocomplete = "off";
+      input.spellcheck = false;
+
+      const icon = document.createElement("span");
+      icon.className = "yz-lesson-search-icon";
+      icon.innerHTML =
+        '<svg viewBox="0 0 1024 1024" width="13" height="13" aria-hidden="true"><path d="M448 128a320 320 0 1 1 0 640 320 320 0 0 1 0-640zm0 64a256 256 0 1 0 0 512 256 256 0 0 0 0-512z" fill="#b2b7c2"/><path d="M697.7 651.5l155.4 155.4-45.2 45.2-155.4-155.4z" fill="#b2b7c2"/></svg>';
+
+      results = document.createElement("div");
+      results.className = "yz-lesson-search-results";
+      results.hidden = true;
+      results.addEventListener("mousedown", (e) => e.preventDefault());
+
+      input.addEventListener("focus", async () => {
+        renderResults();
+        await getCourseList();
+        if (document.activeElement === input) renderResults();
+      });
+      input.addEventListener("input", async () => {
+        renderResults();
+        await getCourseList();
+        if (document.activeElement === input) renderResults();
+      });
+      input.addEventListener("keydown", (e) => {
+        const items = results
+          ? Array.from(results.querySelectorAll(".yz-lesson-search-item"))
+          : [];
+        if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+          if (!items.length) return;
+          e.preventDefault();
+          if (e.key === "ArrowDown") {
+            activeIndex = (activeIndex + 1) % items.length;
+          } else {
+            activeIndex = (activeIndex - 1 + items.length) % items.length;
+          }
+          items.forEach((item, index) =>
+            item.classList.toggle("active", index === activeIndex)
+          );
+          items[activeIndex].scrollIntoView({ block: "nearest" });
+        } else if (e.key === "Enter") {
+          if (!items.length) return;
+          e.preventDefault();
+          const target = items[activeIndex >= 0 ? activeIndex : 0];
+          const course = (courseListCache || []).find(
+            (c) => c.id === target.dataset.id
+          );
+          if (course) {
+            hideResults();
+            openCoursePage(course);
+          }
+        } else if (e.key === "Escape") {
+          hideResults();
+          input.blur();
+        }
+      });
+      input.addEventListener("blur", () => setTimeout(hideResults, 150));
+
+      searchWrap.appendChild(input);
+      searchWrap.appendChild(icon);
+      searchWrap.appendChild(results);
+      toolbar.appendChild(searchWrap);
+    }
+
+    let recentWrap = null;
+    const renderRecent = () => {
+      if (!recentWrap) return;
+      recentWrap.innerHTML = "";
+      if (!settings.home.recentCourses) {
+        recentWrap.hidden = true;
+        return;
+      }
+      const count = parseInt(settings.home.recentCoursesCount, 10) || 5;
+      const list = getRecentCourses().slice(0, Math.max(1, count));
+      if (!list.length) {
+        recentWrap.hidden = true;
+        return;
+      }
+      recentWrap.hidden = false;
+      const label = document.createElement("span");
+      label.className = "yz-lesson-recent-label";
+      label.textContent = "最近使用";
+      recentWrap.appendChild(label);
+      list.forEach((course) => {
+        const chip = document.createElement("span");
+        chip.className = "yz-lesson-recent-chip";
+        chip.textContent = course.name;
+        chip.title = [
+          course.name,
+          course.teachers,
+          course.department,
+          formatRecentTime(course.time),
+        ]
+          .filter(Boolean)
+          .join("\n");
+        chip.addEventListener("click", () => openCoursePage(course));
+        recentWrap.appendChild(chip);
+      });
+      const clear = document.createElement("span");
+      clear.className = "yz-lesson-recent-clear";
+      clear.textContent = "清空";
+      clear.title = "清空最近使用记录";
+      clear.addEventListener("click", () => {
+        GM_setValue(recentCoursesKey(), "[]");
+        renderRecent();
+      });
+      recentWrap.appendChild(clear);
+    };
+
+    if (settings.home.recentCourses) {
+      recentWrap = document.createElement("div");
+      recentWrap.className = "yz-lesson-recent";
+      toolbar.appendChild(recentWrap);
+      renderRecent();
+      recentCourseRenderers = [renderRecent];
+      installCourseClickTracker();
+    }
+
+    header.appendChild(toolbar);
+  }
+
   // 预览URL相关
   async function getPreviewURL(storageId) {
     const res = await fetch(
@@ -2496,6 +2961,140 @@
         display: flex;
         align-items: center;
         justify-content: center;
+      }
+    `);
+    }
+    if (settings.home.courseSearchBox || settings.home.recentCourses) {
+      GM_addStyle(`
+      .yz-lesson-toolbar {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 8px 12px;
+        padding: 10px 24px 0;
+        box-sizing: border-box;
+      }
+      .yz-lesson-search {
+        position: relative;
+        width: 240px;
+        max-width: 100%;
+      }
+      .yz-lesson-search-input {
+        width: 100%;
+        height: 30px;
+        box-sizing: border-box;
+        padding: 0 26px 0 10px;
+        border: 1px solid #e4e6eb;
+        border-radius: 4px;
+        background: #fafafb;
+        color: #171725;
+        font-size: 13px;
+        outline: none;
+        transition: border-color .2s, background .2s;
+      }
+      .yz-lesson-search-input::placeholder {
+        color: #b2b7c2;
+      }
+      .yz-lesson-search-input:focus {
+        border-color: #2962ff;
+        background: #fff;
+      }
+      .yz-lesson-search-icon {
+        position: absolute;
+        top: 50%;
+        right: 8px;
+        display: flex;
+        transform: translateY(-50%);
+        pointer-events: none;
+      }
+      .yz-lesson-search-results {
+        position: absolute;
+        top: 34px;
+        left: 0;
+        z-index: 100;
+        width: 320px;
+        max-width: 70vw;
+        max-height: 280px;
+        overflow-y: auto;
+        padding: 4px;
+        box-sizing: border-box;
+        background: #fff;
+        border: 1px solid #eceef2;
+        border-radius: 6px;
+        box-shadow: 0 6px 20px rgba(0, 0, 0, .12);
+      }
+      .yz-lesson-search-item {
+        padding: 7px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+      }
+      .yz-lesson-search-item:hover,
+      .yz-lesson-search-item.active {
+        background: rgba(41, 98, 255, .08);
+      }
+      .yz-lesson-search-name {
+        font-size: 13px;
+        line-height: 18px;
+        color: #171725;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .yz-lesson-search-meta {
+        margin-top: 2px;
+        font-size: 12px;
+        line-height: 16px;
+        color: #92929d;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .yz-lesson-search-empty {
+        padding: 12px 8px;
+        text-align: center;
+        font-size: 12px;
+        color: #92929d;
+      }
+      .yz-lesson-recent {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 6px;
+        min-width: 0;
+        margin-left: auto;
+      }
+      .yz-lesson-recent-label {
+        font-size: 12px;
+        color: #92929d;
+      }
+      .yz-lesson-recent-chip {
+        display: inline-block;
+        max-width: 160px;
+        padding: 3px 10px;
+        border-radius: 12px;
+        background: #f2f3f5;
+        color: #4b4b55;
+        font-size: 12px;
+        line-height: 18px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        cursor: pointer;
+        transition: background .2s, color .2s;
+      }
+      .yz-lesson-recent-chip:hover {
+        background: rgba(41, 98, 255, .12);
+        color: #2962ff;
+      }
+      .yz-lesson-recent-clear {
+        padding: 3px 4px;
+        font-size: 12px;
+        color: #b2b7c2;
+        cursor: pointer;
+        transition: color .2s;
+      }
+      .yz-lesson-recent-clear:hover {
+        color: #f56c6c;
       }
     `);
     }
@@ -2714,6 +3313,11 @@
       if (settings.system.betterTitle) {
         const pageTitle = "个人主页 - 教学云空间";
         document.title = pageTitle;
+      }
+      if (settings.home.courseSearchBox || settings.home.recentCourses) {
+        setupLessonSearch().catch((e) =>
+          console.error("[ucloud-Evolved] 初始化课程搜索失败", e)
+        );
       }
       if (settings.home.addHomeworkSource) {
         // 未完成任务列表
