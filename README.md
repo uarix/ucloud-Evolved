@@ -14,7 +14,7 @@
   <a href="https://github.com/uarix/ucloud-Evolved/issues?q=is%3Aissue+is%3Aclosed"><img src="https://img.shields.io/github/issues-closed/uarix/ucloud-Evolved?style=flat-square" alt="Closed Issues"></a>
   <br>
   <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
-  <img src="https://img.shields.io/badge/版本-0.38-blue" alt="版本">
+  <img src="https://img.shields.io/badge/版本-0.39-blue" alt="版本">
 </p>
 
 **ucloud-Evolved** 是一款专为 Tampermonkey 插件打造的云邮教学空间优化脚本，专门为北京邮电大学云邮教学空间设计，能够优化学习体验、提高效率，让教学平台使用更加便捷。
@@ -31,6 +31,8 @@
 - 加大翻页按钮尺寸  
 - 显示作业来源  
 - 课程便捷跳转  
+- "本学期课程"支持搜索（课程名 / 教师 / 院系）
+- "本学期课程"显示最近使用过的课程  
 
 ### 2. 课件预览增强  
 - 预览时自动下载  
@@ -90,6 +92,11 @@
 ## 🔄 更新日志
 
 [Commits](https://github.com/uarix/ucloud-Evolved/commits/main/)
+
+### 0.39
+
+- 新功能：主页"本学期课程"增加搜索框，可按课程名、教师、院系搜索并直接打开课程
+- 新功能：主页"本学期课程"显示最近使用的课程，支持一键清空
 
 ### 0.37
 
