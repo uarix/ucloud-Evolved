@@ -229,7 +229,22 @@
       const filename =
         new URLSearchParams(location.search).get("fullfilename") || url;
       const viewURL = new URL(url);
-      if (new URLSearchParams(location.search).get("oauthKey")) {
+      // Office files are rendered via a third-party viewer (view.officeapps.live.com),
+      // which would receive oauthKey as part of the "src" query parameter. Never
+      // attach the sensitive oauthKey credential in that case; only keep it for
+      // same-origin usages (direct PDF/image fetch below).
+      const isThirdPartyOfficeViewer = [
+        ".xls",
+        ".xlsx",
+        ".doc",
+        ".docx",
+        ".ppt",
+        ".pptx",
+      ].some((ext) => filename.endsWith(ext));
+      if (
+        !isThirdPartyOfficeViewer &&
+        new URLSearchParams(location.search).get("oauthKey")
+      ) {
         const viewURLsearch = new URLSearchParams(viewURL.search);
         viewURLsearch.set(
           "oauthKey",
