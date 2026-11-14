@@ -3107,11 +3107,20 @@
     // 获取开关的状态（是否开启）
     const fixTicketEnabled = settings.system.fixTicketBug;
 
-    // ticket跳转：仅当开关开启且存在ticket参数时执行
+    // ticket 清理：等换票落地后只从 URL 移除 ticket 参数，不做跳转。
+    // 门户换票之后还要串行写 user-info / user-role 等 cookie；跳转会卸载页面、
+    // 中止这些写入，表现为 token 存在但 user-role 缺失，/uclass 报「没有访问权限」。
     if (fixTicketEnabled && new URLSearchParams(location.search).get("ticket")?.length) {
-      setTimeout(() => {
-        location.href = "https://ucloud.bupt.edu.cn/uclass/#/student/homePage";
-      }, 500);
+      const startedAt = Date.now();
+      const timer = setInterval(() => {
+        const ready = document.cookie.includes("iClass-token=");
+        if (!ready && Date.now() - startedAt < 8000) return;
+        clearInterval(timer);
+        if (!ready) return; // 换票失败，交给门户自己跳转 CAS
+        const url = new URL(location.href);
+        url.searchParams.delete("ticket");
+        history.replaceState(null, "", url.pathname + url.search + url.hash);
+      }, 200);
       return;
     }
 
